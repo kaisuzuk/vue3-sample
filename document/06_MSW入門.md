@@ -238,12 +238,62 @@ export const itemsLarge = Array.from({ length: 500 }, (_, i) => ({
 }))
 ```
 
+### 例外：バグ再現用 fixture は JSON を許可
+
+結合テスト等で発生した UI バグを確実に再現するために、**実際のレスポンス body（JSON）をそのまま fixture として保存したい**場合があります。
+
+この用途に限り、fixture を **JSON ファイルとして保存することを例外的に許可**します。
+
+- 目的：**「実データをそのまま使って再現する」**
+- 注意：UI 都合で改変しない（実データの写しとして扱う）
+
+推奨命名（例）：
+
+```
+fe-libs/mocks/fixtures/bugs/bug-12345.items.json
+fe-libs/mocks/fixtures/bugs/bug-12345.order.json
+```
+
+> JSON を使うのは **「bug再現」などの例外ケースに限定**し、通常の fixture は TS を基本とします。
+
+### 境界値・大量データは動的生成も可
+
+境界値テストや大量データによる表示・性能確認では、**ループ（Array.from 等）でデータを動的生成**したほうが、
+
+- 修正しやすい
+- 意図が明確
+- 視認性が高い
+
+という利点があります。
+
+この用途に限り、**fixture ファイル内でのみ**動的生成を許可します。
+
+**ルール**：
+
+- 動的生成は **fixtures 配下だけ**で行う（handler 内は禁止）
+- 乱数・現在時刻など、再現性を壊す要素は使わない
+- 生成ロジックは単純に保つ（レビューしやすく）
+
+例：
+
+```typescript
+// fe-libs/mocks/fixtures/items.boundary.ts
+// 境界値：0件、1件、100件
+export const itemsBoundary0 = []
+export const itemsBoundary1 = [{ id: '1', name: '商品1', price: 100 }]
+export const itemsBoundary100 = Array.from({ length: 100 }, (_, i) => ({
+  id: String(i + 1),
+  name: `商品${i + 1}`,
+  price: (i + 1) * 10,
+}))
+```
+
 ### fixture の禁止事項
 
 - ❌ UI 都合でデータ構造を変える
 - ❌ プロパティを省略する
 - ❌ 型を変える（string を number にするなど）
-- ❌ 乱数や現在時刻を使う（再現性がなくなる）
+- ❌ handler 内で乱数や現在時刻を使う（再現性がなくなる）
 
 → **API 仕様（Swagger）どおりに作る**
 
