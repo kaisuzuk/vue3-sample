@@ -300,6 +300,168 @@ export const useItemsList = () => {
 
 ---
 
+### 5-1. Composable 内部構成の標準パターン
+
+Composable（`useXxx` 関数）の内部は、以下の **4 つのセクション** で統一して記述します。
+これにより、実装者による差異をなくし、可読性とメンテナンス性を向上させます。
+
+```typescript
+// features/tasks/model/useTaskList.ts
+import { ref, computed, watch } from 'vue'
+import type { Task, TaskListResponse } from '../types'
+
+export function useTaskList() {
+  // ===================================
+  // State（状態）
+  // ===================================
+  // - ref() で定義するリアクティブな値
+  // - この Composable が管理する「真実」
+  const tasks = ref<Task[]>([])
+  const isLoading = ref(false)
+  const error = ref<Error | null>(null)
+  const selectedTaskId = ref<string | null>(null)
+  const page = ref(1)
+  const limit = ref(10)
+  const sortBy = ref<string>('workDate')
+  const sortOrder = ref<'asc' | 'desc'>('desc')
+
+  // ===================================
+  // Computed（導出値）
+  // ===================================
+  // - State から導出される読み取り専用の値
+  // - view / ui / pagination などに分類
+  
+  /** 選択中のタスク */
+  const selectedTask = computed(() => {
+    if (!selectedTaskId.value) return null
+    return tasks.value.find(t => t.id === selectedTaskId.value) || null
+  })
+  
+  /** ページネーション情報 */
+  const pagination = computed(() => ({
+    page: page.value,
+    limit: limit.value,
+    total: total.value,
+    totalPages: totalPages.value,
+    hasNext: page.value < totalPages.value,
+    hasPrev: page.value > 1,
+  }))
+  
+  /** UI 状態 */
+  const ui = computed(() => ({
+    isLoading: isLoading.value,
+    hasError: error.value !== null,
+    isEmpty: tasks.value.length === 0,
+  }))
+
+  // ===================================
+  // Actions（操作）
+  // ===================================
+  // - State を変更する関数
+  // - API 呼び出しもここで行う
+  // - 非同期処理は async/await で記述
+  
+  /** タスク一覧を取得 */
+  async function fetchTasks() {
+    isLoading.value = true
+    error.value = null
+    try {
+      const params = new URLSearchParams({
+        page: String(page.value),
+        limit: String(limit.value),
+        sortBy: sortBy.value,
+        sortOrder: sortOrder.value,
+      })
+      const response = await fetch(`/api/tasks?${params}`)
+      const data: TaskListResponse = await response.json()
+      tasks.value = data.items
+    } catch (e) {
+      error.value = e instanceof Error ? e : new Error(String(e))
+    } finally {
+      isLoading.value = false
+    }
+  }
+  
+  /** ページ変更 */
+  function changePage(newPage: number) {
+    page.value = newPage
+    selectedTaskId.value = null
+  }
+  
+  /** タスクを選択 */
+  function selectTask(taskId: string | null) {
+    selectedTaskId.value = taskId
+  }
+
+  // ===================================
+  // Watchers（監視）
+  // ===================================
+  // - State の変化を監視して副作用を実行
+  // - 自動再取得などに使用
+  
+  // ページ/ソート変更時に自動で再取得
+  watch([page, sortBy, sortOrder, limit], () => {
+    fetchTasks()
+  })
+
+  // ===================================
+  // Return（公開インターフェース）
+  // ===================================
+  return {
+    // State（必要に応じて公開）
+    tasks,
+    isLoading,
+    error,
+    selectedTaskId,
+    
+    // Computed
+    selectedTask,
+    pagination,
+    ui,
+    
+    // Actions
+    fetchTasks,
+    changePage,
+    selectTask,
+  }
+}
+```
+
+#### セクション別ガイドライン
+
+| セクション | 役割 | 命名規則 | 備考 |
+|-----------|------|---------|------|
+| **State** | リアクティブな値を定義 | 名詞（`items`, `isLoading`） | `ref()` または `reactive()` |
+| **Computed** | State から導出される値 | 名詞（`selectedItem`, `pagination`） | `computed()` で定義 |
+| **Actions** | State を変更する操作 | 動詞（`fetchItems`, `selectItem`） | `function` で定義 |
+| **Watchers** | State 変化時の副作用 | - | `watch()` で定義 |
+
+#### なぜ 4 セクション構成なのか？
+
+1. **可読性**: どこに何があるか一目でわかる
+2. **一貫性**: チーム全体で同じ構成になる
+3. **保守性**: 変更箇所を特定しやすい
+4. **レビュー効率**: 構成が統一されているので確認が容易
+
+#### 簡易版（小規模な Composable）
+
+小さな Composable では、State と Actions のみで十分な場合もあります：
+
+```typescript
+export function useCounter() {
+  // State
+  const count = ref(0)
+  
+  // Actions
+  const increment = () => count.value++
+  const decrement = () => count.value--
+  
+  return { count, increment, decrement }
+}
+```
+
+---
+
 ### 6. entities（ドメインロジック）
 
 **役割：** 「ドメインとして正しいか」を判断する純関数。
