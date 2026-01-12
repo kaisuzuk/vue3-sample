@@ -18,12 +18,17 @@
 
 ```
 sample/
+├── src/widgets/tasks/
+│   ├── TaskFilterDialog/        # 新規作成
+│   │   ├── TaskFilterDialog.vue
+│   │   └── index.ts
+│   ├── TaskListWidget/          # 更新
+│   │   └── TaskListWidget.vue
+│   └── index.ts
+│
 ├── src/features/tasks/
-│   ├── components/
-│   │   └── TaskFilterDialog.vue    # 新規作成
-│   │   └── TaskListWidget.vue      # 更新
 │   └── model/
-│       └── useTaskList.ts          # 更新
+│       └── useTaskList.ts           # 更新
 │
 └── fe-libs/mocks/handlers/
     └── tasks.handlers.ts           # 更新
@@ -39,10 +44,13 @@ graph TD
         W[TaskListWidget]
     end
     
-    subgraph Widget["TaskListWidget"]
-        TTS[TaskTableSection]
-        TDS[TaskDetailSidebar]
+    subgraph Widget["Widget Layer"]
         TFD[TaskFilterDialog]
+        TDS[TaskDetailSidebar]
+    end
+    
+    subgraph Section["Section Layer"]
+        TTS[TaskTableSection]
     end
     
     subgraph Composable["Composable"]
@@ -433,21 +441,51 @@ function applyFilter(newFilter: TaskFilter) {
 ## 8. 完成したディレクトリ構成
 
 ```
-sample/src/features/tasks/
-├── components/
+sample/src/
+├── widgets/tasks/
 │   ├── index.ts
-│   ├── TaskTableSection.vue     # Phase 2
-│   ├── TaskDetailSidebar.vue    # Phase 2
-│   ├── TaskListWidget.vue       # Phase 2 → Phase 4 で更新
-│   ├── TaskFilterDialog.vue     # Phase 4 で追加
-│   ├── TaskFormSection.vue      # Phase 3
-│   └── TaskFormWidget.vue       # Phase 3
-├── model/
+│   ├── TaskListWidget/
+│   │   ├── TaskListWidget.vue       # Phase 2 → Phase 4 で更新
+│   │   └── index.ts
+│   ├── TaskFormWidget/
+│   │   ├── TaskFormWidget.vue       # Phase 3
+│   │   └── index.ts
+│   ├── TaskDetailSidebar/
+│   │   ├── TaskDetailSidebar.vue    # Phase 2
+│   │   └── index.ts
+│   └── TaskFilterDialog/
+│       ├── TaskFilterDialog.vue     # Phase 4 で追加
+│       └── index.ts
+│
+├── sections/tasks/
 │   ├── index.ts
-│   ├── useTaskList.ts           # Phase 2 → Phase 4 で更新
-│   └── useTaskForm.ts           # Phase 3
-└── types/
-    └── index.ts
+│   ├── TaskTableSection/
+│   │   ├── TaskTableSection.vue     # Phase 2
+│   │   ├── TaskTableSection.stories.ts
+│   │   └── index.ts
+│   └── TaskFormSection/
+│       ├── TaskFormSection.vue      # Phase 3
+│       ├── TaskFormSection.stories.ts
+│       └── index.ts
+│
+├── shared/ui/
+│   ├── index.ts
+│   ├── AppHeader/
+│   ├── ConfirmDialog/
+│   └── AppToast/
+│
+├── features/tasks/
+│   ├── model/
+│   │   ├── index.ts
+│   │   ├── useTaskList.ts           # Phase 2 → Phase 4 で更新
+│   │   └── useTaskForm.ts           # Phase 3
+│   └── types/
+│       └── index.ts
+│
+└── pages/tasks/
+    ├── TaskListPage.vue
+    ├── TaskCreatePage.vue
+    └── TaskEditPage.vue
 ```
 
 ---

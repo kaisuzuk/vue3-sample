@@ -15,11 +15,11 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { useTaskList, type TaskFilter } from '../model/useTaskList'
+import { useTaskList, type TaskFilter } from '@/features/tasks/model/useTaskList'
 import { useMasterStore } from '@/features/master/model/useMasterStore'
-import TaskTableSection from './TaskTableSection.vue'
-import TaskDetailSidebar from './TaskDetailSidebar.vue'
-import TaskFilterDialog from './TaskFilterDialog.vue'
+import { TaskTableSection } from '@/sections/tasks/TaskTableSection'
+import { TaskDetailSidebar } from '@/widgets/tasks/TaskDetailSidebar'
+import { TaskFilterDialog } from '@/widgets/tasks/TaskFilterDialog'
 
 // ===================================
 // Composable

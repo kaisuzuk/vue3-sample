@@ -9,7 +9,7 @@
 
 <script setup lang="ts">
 import { useRoute } from 'vue-router'
-import TaskFormWidget from '@/features/tasks/components/TaskFormWidget.vue'
+import { TaskFormWidget } from '@/widgets/tasks'
 
 const route = useRoute()
 const taskId = route.params.id as string

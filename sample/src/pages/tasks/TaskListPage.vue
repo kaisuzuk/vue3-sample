@@ -10,7 +10,7 @@
 =================================== -->
 
 <script setup lang="ts">
-import TaskListWidget from '@/features/tasks/components/TaskListWidget.vue'
+import { TaskListWidget } from '@/widgets/tasks'
 </script>
 
 <template>

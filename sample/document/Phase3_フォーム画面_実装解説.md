@@ -13,10 +13,20 @@
 
 ```
 sample/
+├── src/widgets/tasks/
+│   ├── TaskFormWidget/          # フォームWidget（Container）
+│   │   ├── TaskFormWidget.vue
+│   │   └── index.ts
+│   └── index.ts                 # widgets エクスポート
+│
+├── src/sections/tasks/
+│   ├── TaskFormSection/         # フォームUI（Presentational）
+│   │   ├── TaskFormSection.vue
+│   │   ├── TaskFormSection.stories.ts
+│   │   └── index.ts
+│   └── index.ts                 # sections エクスポート
+│
 ├── src/features/tasks/
-│   ├── components/
-│   │   ├── TaskFormSection.vue  # フォームUI（Presentational）
-│   │   └── TaskFormWidget.vue   # フォームWidget（Container）
 │   └── model/
 │       └── useTaskForm.ts       # フォーム管理 Composable
 │
@@ -40,7 +50,7 @@ graph TD
         TFW[TaskFormWidget]
     end
     
-    subgraph Components Layer
+    subgraph Section Layer
         TFS[TaskFormSection]
     end
     
@@ -102,8 +112,9 @@ const emit = defineEmits<{
 
 ```vue
 <script setup lang="ts">
-import { useTaskForm } from '../model/useTaskForm'
+import { useTaskForm } from '@/features/tasks/model/useTaskForm'
 import { useMasterStore } from '@/features/master/model/useMasterStore'
+import { TaskFormSection } from '@/sections/tasks/TaskFormSection'
 
 const props = defineProps<{
   mode: 'create' | 'edit'

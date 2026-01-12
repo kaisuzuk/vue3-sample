@@ -21,12 +21,23 @@ sample/
 │   └── handlers/
 │       └── tasks.handlers.ts    # 更新: GET/POST/PUT/DELETE 完全実装
 │
+├── src/widgets/tasks/
+│   ├── index.ts                 # widgets エクスポート
+│   ├── TaskListWidget/          # 一覧画面Widget（Container）
+│   │   ├── TaskListWidget.vue
+│   │   └── index.ts
+│   └── TaskDetailSidebar/       # 詳細表示サイドバー
+│       ├── TaskDetailSidebar.vue
+│       └── index.ts
+│
+├── src/sections/tasks/
+│   ├── index.ts                 # sections エクスポート
+│   └── TaskTableSection/        # テーブル表示（Presentational）
+│       ├── TaskTableSection.vue
+│       ├── TaskTableSection.stories.ts
+│       └── index.ts
+│
 ├── src/features/tasks/
-│   ├── components/
-│   │   ├── index.ts             # コンポーネント エクスポート
-│   │   ├── TaskTableSection.vue # テーブル表示（Presentational）
-│   │   ├── TaskDetailSidebar.vue # 詳細表示サイドバー
-│   │   └── TaskListWidget.vue   # 一覧画面Widget（Container）
 │   └── model/
 │       ├── index.ts             # model エクスポート
 │       └── useTaskList.ts       # 一覧管理 Composable
@@ -47,11 +58,11 @@ graph TD
     
     subgraph Widget Layer
         TLW[TaskListWidget]
+        TDS[TaskDetailSidebar]
     end
     
-    subgraph Components Layer
+    subgraph Section Layer
         TTS[TaskTableSection]
-        TDS[TaskDetailSidebar]
     end
     
     subgraph Model Layer
@@ -135,9 +146,9 @@ const emit = defineEmits<{
 
 ```vue
 <script setup lang="ts">
-import { useTaskList } from '../model/useTaskList'
-import TaskTableSection from './TaskTableSection.vue'
-import TaskDetailSidebar from './TaskDetailSidebar.vue'
+import { useTaskList } from '@/features/tasks/model/useTaskList'
+import { TaskTableSection } from '@/sections/tasks/TaskTableSection'
+import { TaskDetailSidebar } from '@/widgets/tasks/TaskDetailSidebar'
 
 // Composable でロジックを取得
 const {

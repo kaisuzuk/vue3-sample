@@ -15,9 +15,9 @@
 <script setup lang="ts">
 import { onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { useTaskForm } from '../model/useTaskForm'
+import { useTaskForm } from '@/features/tasks/model/useTaskForm'
 import { useMasterStore } from '@/features/master/model/useMasterStore'
-import TaskFormSection from './TaskFormSection.vue'
+import { TaskFormSection } from '@/sections/tasks/TaskFormSection'
 
 // ===================================
 // Props

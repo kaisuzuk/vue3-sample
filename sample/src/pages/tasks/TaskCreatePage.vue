@@ -7,7 +7,7 @@
 =================================== -->
 
 <script setup lang="ts">
-import TaskFormWidget from '@/features/tasks/components/TaskFormWidget.vue'
+import { TaskFormWidget } from '@/widgets/tasks'
 </script>
 
 <template>
