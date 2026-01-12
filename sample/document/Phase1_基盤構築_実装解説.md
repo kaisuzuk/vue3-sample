@@ -964,39 +964,38 @@ sample/
 
 ### 7.2 起動フロー
 
-```
-1. pnpm dev
-   ↓
-2. Vite 開発サーバー起動
-   ↓
-3. main.ts 実行
-   ├── MSW 起動（開発環境のみ）
-   └── Vue アプリ作成・マウント
-       ├── Pinia 登録
-       ├── Router 登録
-       └── Vuetify 登録
-   ↓
-4. App.vue onMounted
-   └── マスタストア初期化（GET /api/masters）
-   ↓
-5. 初期画面表示（/tasks → TaskListPage.vue）
+```mermaid
+flowchart TD
+    A["1. pnpm dev"] --> B["2. Vite 開発サーバー起動"]
+    B --> C["3. main.ts 実行"]
+    C --> D["MSW 起動<br/>(開発環境のみ)"]
+    C --> E["Vue アプリ作成・マウント"]
+    E --> F["Pinia 登録"]
+    E --> G["Router 登録"]
+    E --> H["Vuetify 登録"]
+    F & G & H --> I["4. App.vue onMounted"]
+    I --> J["マスタストア初期化<br/>GET /api/masters"]
+    J --> K["5. 初期画面表示<br/>/tasks → TaskListPage.vue"]
 ```
 
 ### 7.3 データフロー
 
-```
-[画面遷移時]
-beforeEach → checkAndUpdateMasters()
-             ↓
-          GET /api/masters/check
-             ↓
-          更新が必要なマスタを個別取得
-             ↓
-          ストア更新
-             ↓
-          next() → 画面表示
+**画面遷移時のマスタ更新チェック：**
 
-[コンポーネントからマスタ参照]
+```mermaid
+flowchart TD
+    A["beforeEach"] --> B["checkAndUpdateMasters()"]
+    B --> C["GET /api/masters/check"]
+    C --> D{"更新が必要な<br/>マスタがある？"}
+    D -->|はい| E["個別マスタ取得"]
+    D -->|いいえ| F["ストア更新"]
+    E --> F
+    F --> G["next() → 画面表示"]
+```
+
+**コンポーネントからマスタ参照：**
+
+```vue
 <script setup>
 const { workers, getWorkerName } = useMasterStore()
 </script>

@@ -342,38 +342,36 @@ export const validateItem = (item: { name: string; price: number }): ItemValidat
 
 ## データフロー図
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                           Page                                  │
-│  （ルーティング入口のみ）                                           │
-└─────────────────────────────────────────────────────────────────┘
-                                │
-                                ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                          Widget                                 │
-│  ┌──────────────┐    ┌────────────────────────────────────────┐ │
-│  │   model      │◄───│  useXxx() から状態を取得                 │ │
-│  │  (usecase)   │    └────────────────────────────────────────┘ │
-│  └──────────────┘                                               │
-│         │                                                       │
-│         │ props で配布                                           │
-│         ▼                                                       │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐           │
-│  │  Section A   │  │  Section B   │  │  Section C   │           │
-│  └──────────────┘  └──────────────┘  └──────────────┘           │
-│         │                │                │                     │
-│         └────────────────┴────────────────┘                     │
-│                          │                                      │
-│                          │ emit                                 │
-│                          ▼                                      │
-│                   actions.xxx()                                 │
-└─────────────────────────────────────────────────────────────────┘
-                                │
-                                ▼
-                          状態が更新
-                                │
-                                ▼
-                          再描画
+```mermaid
+flowchart TD
+    subgraph Page["Page(routing入口のみ)"]
+        PageComponent["Page Component"]
+    end
+    
+    subgraph Widget["Widget"]
+        Model["model<br/>(usecase)"]
+        UseXxx["useXxx() から状態を取得"]
+        SectionA["Section A"]
+        SectionB["Section B"]
+        SectionC["Section C"]
+        Actions["actions.xxx()"]
+        
+        UseXxx --> Model
+        Model -->|"props で配布"| SectionA
+        Model -->|"props で配布"| SectionB
+        Model -->|"props で配布"| SectionC
+        SectionA -->|"emit"| Actions
+        SectionB -->|"emit"| Actions
+        SectionC -->|"emit"| Actions
+    end
+    
+    State["状態が更新"]
+    Render["再描画"]
+    
+    PageComponent --> Widget
+    Actions --> State
+    State --> Render
+    Render -.-> Widget
 ```
 
 ---
