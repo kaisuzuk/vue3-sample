@@ -1,16 +1,31 @@
-# Storybook 入門
+# Storybook ガイド
 
-このドキュメントでは、Storybook を使ったことがない人向けに、「Storybook とは何か」「なぜ使うのか」「どう使うのか」を説明します。
+このドキュメントでは、Storybook の基本概念から実践的な使い方まで解説します。
 
 ---
 
-## Storybook とは
+## 目次
+
+1. [Storybook とは](#1-storybook-とは)
+2. [なぜ Storybook を使うのか](#2-なぜ-storybook-を使うのか)
+3. [基本概念](#3-基本概念)
+4. [対象コンポーネントの設計指針](#4-対象コンポーネントの設計指針)
+5. [設定ファイル解説](#5-設定ファイル解説)
+6. [Story ファイルの書き方](#6-story-ファイルの書き方)
+7. [実践サンプル集](#7-実践サンプル集)
+8. [必須 Story チェックリスト](#8-必須-story-チェックリスト)
+9. [開発フローへの組み込み](#9-開発フローへの組み込み)
+10. [トラブルシューティング](#10-トラブルシューティング)
+
+---
+
+## 1. Storybook とは
 
 ### 一言で言うと
 
 Storybook は、**画面を起動しなくても、コンポーネント単体を動かして確認できるツール**です。
 
-### Vue2 時代の開発（Storybook なし）
+### 従来の開発（Storybook なし）
 
 ```
 1. 画面全体を起動する
@@ -20,7 +35,7 @@ Storybook は、**画面を起動しなくても、コンポーネント単体�
 5. やっと確認できる
 ```
 
-問題点：
+**問題点:**
 - 確認に時間がかかる
 - 特定の状態（エラーなど）の再現が難しい
 - API が必要
@@ -33,20 +48,19 @@ Storybook は、**画面を起動しなくても、コンポーネント単体�
 3. 状態を切り替えて確認する
 ```
 
-メリット：
+**メリット:**
 - コンポーネント単体で確認できる
 - 状態（通常、エラー、ローディング）を簡単に切り替えられる
 - API 不要（props で状態を渡すだけ）
+- デザイナーや QA との共有が容易
 
 ---
 
-## なぜ Storybook を使うのか
+## 2. なぜ Storybook を使うのか
 
 ### 理由 1：CDD（コンポーネント駆動開発）と相性が良い
 
-このプロジェクトでは「部品を先に作り、画面は後から組み合わせる」という考え方を採用しています。
-
-Storybook は「部品単体で確認・開発する」ためのツールなので、CDD と自然に噛み合います。
+「部品を先に作り、画面は後から組み合わせる」という考え方を採用する場合、Storybook は「部品単体で確認・開発する」ためのツールとして自然に噛み合います。
 
 ### 理由 2：設計の健全性がわかる
 
@@ -57,6 +71,7 @@ Storybook で確認しようとしたとき、以下のような状況になっ�
 | props が多すぎる | コンポーネントの責務が広すぎる |
 | Story を書くのが難しい | API や Store に依存しすぎている |
 | 状態を説明できない | ロジックが UI に漏れている |
+| Story が増えすぎる | コンポーネントを分割すべき |
 
 ### 理由 3：レビューがしやすくなる
 
@@ -68,7 +83,7 @@ Storybook があると、レビュー時にこう確認できます：
 
 ---
 
-## Storybook の基本概念
+## 3. 基本概念
 
 ### Story とは
 
@@ -76,10 +91,12 @@ Storybook があると、レビュー時にこう確認できます：
 
 例えば Button コンポーネントの場合：
 
-- 通常状態 → 1 つの Story
-- disabled 状態 → 1 つの Story
-- loading 状態 → 1 つの Story
-- danger（危険操作）→ 1 つの Story
+| Story 名 | 状態 |
+|----------|------|
+| Primary | 通常のプライマリボタン |
+| Secondary | セカンダリボタン |
+| Disabled | 操作不可状態 |
+| Loading | ローディング中 |
 
 これらをすべて Storybook に登録しておくと、状態を切り替えて確認できます。
 
@@ -91,237 +108,595 @@ Storybook があると、レビュー時にこう確認できます：
 
 ---
 
-## Storybook 対象のコンポーネント
+## 4. 対象コンポーネントの設計指針
 
-### 必須対象
+### レイヤー別の対象判断
 
-| 種類 | 例 | 理由 |
-|------|-----|------|
-| shared/ui | Button, TextField, Select | 全画面で使うので品質が重要 |
-| sections | ItemsTableSection, FormSection | 状態パターンの確認が必要 |
+```
+┌──────────────────────────────────────────────────────┐
+│  pages/                                              │
+│    ├── ルーティング依存                             │  ❌ 対象外
+│    └── API 呼び出し                                 │
+├──────────────────────────────────────────────────────┤
+│  widgets/                                            │
+│    ├── 複数の section を組み合わせ                  │  ❌ 対象外
+│    └── API 呼び出し or 状態管理                     │
+├──────────────────────────────────────────────────────┤
+│  sections/                                           │
+│    ├── Props で完結                                 │  ✅ 対象
+│    └── UI ロジックのみ                              │
+├──────────────────────────────────────────────────────┤
+│  shared/ui/                                          │
+│    ├── 汎用的な UI 部品                             │  ✅ 対象
+│    └── どこからでも使える                           │
+└──────────────────────────────────────────────────────┘
+```
 
-### 任意対象
+### Storybook 対象にするコンポーネントの条件
 
-| 種類 | 例 | 理由 |
-|------|-----|------|
-| Wrapper | RegisterButton, DangerButton | 用途が固定されているものは確認価値あり |
+| 条件 | 説明 |
+|------|------|
+| **Props で完結** | 必要なデータはすべて Props で受け取る |
+| **API 非依存** | 内部で fetch や axios を呼び出さない |
+| **ルーティング非依存** | router.push() などを呼び出さない |
+| **Emit でイベント通知** | 親へのイベント伝達は emit で行う |
 
-### 対象外
+### よくある NG 例
 
-| 種類 | 例 | 理由 |
-|------|-----|------|
-| pages | ItemsListPage | 画面統合は実画面で確認 |
-| widgets | ItemsListWidget | 依存が多く Storybook 向きでない |
-| 外部依存が重いもの | Google Map | Storybook で再現困難 |
+```typescript
+// ❌ NG: コンポーネント内で API を呼んでいる
+onMounted(async () => {
+  items.value = await fetchItems()
+})
+
+// ❌ NG: Store を import している
+import { useItemStore } from '@/stores/item'
+```
+
+→ Section は props で受け取る設計に変更する
 
 ---
 
-## Story の書き方
+## 5. 設定ファイル解説
 
-### 基本構造
+### 5.1 main.ts（メイン設定）
 
 ```typescript
-// components/Button/Button.stories.ts
-import type { Meta, StoryObj } from '@storybook/vue3'
-import Button from './Button.vue'
+// .storybook/main.ts
+import type { StorybookConfig } from "@storybook/vue3-vite";
 
-// メタ情報（コンポーネントの登録）
-const meta: Meta<typeof Button> = {
-  title: 'shared/ui/Button',  // Storybook 上の表示パス
-  component: Button,
-  tags: ['autodocs'],         // 自動ドキュメント生成
-}
-
-export default meta
-type Story = StoryObj<typeof Button>
-
-// 各 Story の定義
-export const Primary: Story = {
-  args: {
-    variant: 'primary',
+const config: StorybookConfig = {
+  // Story ファイルの検索パターン
+  stories: [
+    "../src/**/*.mdx",                           // MDXドキュメント
+    "../src/**/*.stories.@(js|jsx|mjs|ts|tsx)"  // Storyファイル
+  ],
+  
+  // 使用するアドオン
+  addons: [
+    "@storybook/addon-essentials"  // Controls, Actions, Docs など基本機能
+  ],
+  
+  // フレームワーク設定
+  framework: {
+    name: "@storybook/vue3-vite",  // Vue 3 + Vite
+    options: {},
   },
-  render: (args) => ({
-    components: { Button },
-    setup() {
-      return { args }
-    },
-    template: '<Button v-bind="args">ボタン</Button>',
-  }),
-}
-
-export const Secondary: Story = {
-  args: {
-    variant: 'secondary',
+  
+  // Vite 設定のカスタマイズ（必要に応じて）
+  viteFinal: async (config) => {
+    return config;
   },
-  render: (args) => ({
-    components: { Button },
-    setup() {
-      return { args }
-    },
-    template: '<Button v-bind="args">ボタン</Button>',
-  }),
-}
+};
 
-export const Danger: Story = {
-  args: {
-    variant: 'danger',
-  },
-  render: (args) => ({
-    components: { Button },
-    setup() {
-      return { args }
-    },
-    template: '<Button v-bind="args">削除する</Button>',
-  }),
-}
+export default config;
+```
 
-export const Loading: Story = {
-  args: {
-    loading: true,
-  },
-  render: (args) => ({
-    components: { Button },
-    setup() {
-      return { args }
-    },
-    template: '<Button v-bind="args">保存中...</Button>',
-  }),
-}
+### 5.2 preview.ts（プレビュー設定）
 
-export const Disabled: Story = {
-  args: {
-    disabled: true,
-  },
-  render: (args) => ({
-    components: { Button },
-    setup() {
-      return { args }
+Vuetify を使用するプロジェクトでは、preview.ts での設定が重要です。
+
+```typescript
+// .storybook/preview.ts
+import type { Preview } from "@storybook/vue3";
+import { setup } from "@storybook/vue3";
+
+// ===== Vuetify のセットアップ =====
+import "vuetify/styles";
+import "@mdi/font/css/materialdesignicons.css";
+import { createVuetify } from "vuetify";
+import * as components from "vuetify/components";
+import * as directives from "vuetify/directives";
+
+const vuetify = createVuetify({
+  components,
+  directives,
+  theme: { defaultTheme: "light" },
+});
+
+// Vue アプリに Vuetify を登録
+setup((app) => {
+  app.use(vuetify);
+});
+
+// ===== プレビュー設定 =====
+const preview: Preview = {
+  parameters: {
+    controls: {
+      matchers: {
+        color: /(background|color)$/i,
+        date: /Date$/i,
+      },
     },
-    template: '<Button v-bind="args">ボタン</Button>',
-  }),
+    backgrounds: {
+      default: "light",
+      values: [
+        { name: "light", value: "#FFFFFF" },
+        { name: "dark", value: "#121212" },
+        { name: "grey", value: "#F5F5F5" },
+      ],
+    },
+  },
+  
+  // 全 Story を v-app でラップ（Vuetify 必須）
+  decorators: [
+    (story) => ({
+      components: { story },
+      template: `
+        <v-app>
+          <v-main>
+            <v-container>
+              <story />
+            </v-container>
+          </v-main>
+        </v-app>
+      `,
+    }),
+  ],
+};
+
+export default preview;
+```
+
+**重要:** Vuetify コンポーネントは `<v-app>` 内でないと正常に動作しないため、decorators で自動ラップしています。
+
+---
+
+## 6. Story ファイルの書き方
+
+### 6.1 基本構造
+
+```typescript
+import type { Meta, StoryObj } from "@storybook/vue3";
+import MyComponent from "./MyComponent.vue";
+
+// ===== メタ情報 =====
+const meta: Meta<typeof MyComponent> = {
+  title: "カテゴリ/コンポーネント名",  // サイドバーでの表示階層
+  component: MyComponent,               // 対象コンポーネント
+  tags: ["autodocs"],                   // 自動ドキュメント生成
+  argTypes: {                           // Props の説明
+    propName: {
+      description: "説明文",
+      control: "text",
+    },
+  },
+};
+
+export default meta;
+type Story = StoryObj<typeof MyComponent>;
+
+// ===== Story 定義 =====
+/**
+ * Story の説明（Docs に表示される）
+ */
+export const Default: Story = {
+  args: {
+    propName: "値",
+  },
+};
+```
+
+### 6.2 title の命名規則
+
+ディレクトリ構造に合わせた命名を採用します。
+
+| ディレクトリ | title 例 |
+|-------------|----------|
+| `sections/tasks/TaskTableSection` | `sections/tasks/TaskTableSection` |
+| `shared/ui/AppHeader` | `shared/ui/AppHeader` |
+
+### 6.3 argTypes の control 種類
+
+```typescript
+argTypes: {
+  text: { control: "text" },           // テキスト入力
+  count: { control: "number" },        // 数値入力
+  isActive: { control: "boolean" },    // トグル
+  size: {                              // セレクトボックス
+    control: "select", 
+    options: ["small", "medium", "large"] 
+  },
+  variant: {                           // ラジオボタン
+    control: "radio",
+    options: ["outlined", "filled", "text"],
+  },
+  items: { control: "object" },        // 配列・オブジェクト
+  date: { control: "date" },           // 日付
+  color: { control: "color" },         // 色選択
 }
 ```
 
-### Section の Story 例
+### 6.4 ファイル配置ルール
+
+```
+src/
+├── shared/ui/
+│   └── Button/
+│       ├── Button.vue
+│       └── Button.stories.ts   # 同じフォルダに配置
+└── sections/
+    └── tasks/
+        └── TaskTableSection/
+            ├── TaskTableSection.vue
+            └── TaskTableSection.stories.ts
+```
+
+**ルール：Story ファイルはコンポーネントと同じフォルダに配置**
+
+---
+
+## 7. 実践サンプル集
+
+### 7.1 シンプルなコンポーネント（args パターン）
+
+Props のみで完結するシンプルなパターン。
 
 ```typescript
-// pages/items/sections/ItemsTableSection.stories.ts
-import type { Meta, StoryObj } from '@storybook/vue3'
-import ItemsTableSection from './ItemsTableSection.vue'
+// shared/ui/AppHeader/AppHeader.stories.ts
+import type { Meta, StoryObj } from "@storybook/vue3";
+import AppHeader from "./AppHeader.vue";
 
-const meta: Meta<typeof ItemsTableSection> = {
-  title: 'sections/ItemsTableSection',
-  component: ItemsTableSection,
-}
+const meta: Meta<typeof AppHeader> = {
+  title: "shared/ui/AppHeader",
+  component: AppHeader,
+  tags: ["autodocs"],
+  argTypes: {
+    title: { description: "ページタイトル", control: "text" },
+    showBack: { description: "戻るボタンを表示するか", control: "boolean" },
+  },
+};
 
-export default meta
-type Story = StoryObj<typeof ItemsTableSection>
+export default meta;
+type Story = StoryObj<typeof AppHeader>;
+
+export const Default: Story = {
+  args: {
+    title: "タスク一覧",
+    showBack: false,
+  },
+};
+
+export const WithBackButton: Story = {
+  args: {
+    title: "タスク編集",
+    showBack: true,
+  },
+};
+```
+
+### 7.2 スロットを使うコンポーネント（render パターン）
+
+```typescript
+export const WithActions: Story = {
+  args: {
+    title: "タスク一覧",
+    showBack: false,
+  },
+  render: (args) => ({
+    components: { AppHeader },
+    setup() {
+      return { args };
+    },
+    template: `
+      <AppHeader v-bind="args">
+        <template #actions>
+          <v-btn color="primary" prepend-icon="mdi-plus">新規作成</v-btn>
+        </template>
+      </AppHeader>
+    `,
+  }),
+};
+```
+
+### 7.3 v-model を使うコンポーネント
+
+`ref` を使って双方向バインディングを実現。
+
+```typescript
+// shared/ui/ConfirmDialog/ConfirmDialog.stories.ts
+import { ref } from "vue";
+
+export const Interactive: Story = {
+  render: () => ({
+    components: { ConfirmDialog },
+    setup() {
+      const isOpen = ref(false);
+      const handleConfirm = () => {
+        console.log("確認ボタンがクリックされました");
+        isOpen.value = false;
+      };
+      return { isOpen, handleConfirm };
+    },
+    template: `
+      <div>
+        <v-btn color="error" @click="isOpen = true">
+          削除ダイアログを開く
+        </v-btn>
+        <ConfirmDialog
+          v-model="isOpen"
+          title="削除確認"
+          message="本当に削除しますか？"
+          confirmText="削除"
+          confirmColor="error"
+          @confirm="handleConfirm"
+        />
+      </div>
+    `,
+  }),
+};
+```
+
+### 7.4 複雑なフォームコンポーネント
+
+複数の Props と双方向バインディング、イベントハンドラを持つパターン。
+
+```typescript
+// sections/tasks/TaskFormSection/TaskFormSection.stories.ts
+import type { Meta, StoryObj } from "@storybook/vue3";
+import { ref } from "vue";
+import TaskFormSection from "./TaskFormSection.vue";
+
+const meta: Meta<typeof TaskFormSection> = {
+  title: "sections/tasks/TaskFormSection",
+  component: TaskFormSection,
+  tags: ["autodocs"],
+};
+
+export default meta;
+type Story = StoryObj<typeof TaskFormSection>;
+
+// モックマスタデータ
+const mockWorkers = [
+  { id: "w1", name: "山田太郎", department: "工事部" },
+  { id: "w2", name: "鈴木花子", department: "工事部" },
+];
+const mockMachines = [
+  { id: "m1", name: "掘削機A", category: "掘削" },
+];
+
+// 初期状態
+export const Default: Story = {
+  render: () => ({
+    components: { TaskFormSection },
+    setup() {
+      const form = ref({ workDate: "", workerIds: [], machineId: "", materials: [] });
+      const errors = ref({});
+      return {
+        form, errors,
+        workers: mockWorkers,
+        machines: mockMachines,
+        canSubmit: false,
+        submitting: false,
+      };
+    },
+    template: `
+      <TaskFormSection
+        :form="form"
+        :errors="errors"
+        :workers="workers"
+        :machines="machines"
+        :canSubmit="canSubmit"
+        :submitting="submitting"
+      />
+    `,
+  }),
+};
+
+// 入力済み
+export const Filled: Story = {
+  render: () => ({
+    components: { TaskFormSection },
+    setup() {
+      const form = ref({
+        workDate: "2024-01-15",
+        workerIds: ["w1", "w2"],
+        machineId: "m1",
+        materials: [{ id: "mat1", amount: 100, unitId: "u1" }],
+      });
+      const errors = ref({});
+      return {
+        form, errors,
+        workers: mockWorkers,
+        machines: mockMachines,
+        canSubmit: true,
+        submitting: false,
+      };
+    },
+    template: `
+      <TaskFormSection
+        :form="form"
+        :errors="errors"
+        :workers="workers"
+        :machines="machines"
+        :canSubmit="canSubmit"
+        :submitting="submitting"
+      />
+    `,
+  }),
+};
+
+// エラーあり
+export const WithErrors: Story = {
+  render: () => ({
+    components: { TaskFormSection },
+    setup() {
+      const form = ref({ workDate: "", workerIds: [], machineId: "", materials: [] });
+      const errors = ref({
+        workDate: "作業日を入力してください",
+        workerIds: "作業者を1名以上選択してください",
+        machineId: "機械を選択してください",
+      });
+      return {
+        form, errors,
+        workers: mockWorkers,
+        machines: mockMachines,
+        canSubmit: false,
+        submitting: false,
+      };
+    },
+    template: `
+      <TaskFormSection
+        :form="form"
+        :errors="errors"
+        :workers="workers"
+        :machines="machines"
+        :canSubmit="canSubmit"
+        :submitting="submitting"
+      />
+    `,
+  }),
+};
+
+// 送信中
+export const Submitting: Story = {
+  render: () => ({
+    components: { TaskFormSection },
+    setup() {
+      const form = ref({
+        workDate: "2024-01-15",
+        workerIds: ["w1"],
+        machineId: "m1",
+        materials: [],
+      });
+      const errors = ref({});
+      return {
+        form, errors,
+        workers: mockWorkers,
+        machines: mockMachines,
+        canSubmit: false,
+        submitting: true,
+      };
+    },
+    template: `
+      <TaskFormSection
+        :form="form"
+        :errors="errors"
+        :workers="workers"
+        :machines="machines"
+        :canSubmit="canSubmit"
+        :submitting="submitting"
+      />
+    `,
+  }),
+};
+
+// 無効状態
+export const Disabled: Story = {
+  render: () => ({
+    components: { TaskFormSection },
+    setup() {
+      const form = ref({
+        workDate: "2024-01-15",
+        workerIds: ["w1"],
+        machineId: "m1",
+        materials: [],
+      });
+      const errors = ref({});
+      return {
+        form, errors,
+        workers: mockWorkers,
+        machines: mockMachines,
+        canSubmit: false,
+        submitting: false,
+        disabled: true,
+      };
+    },
+    template: `
+      <TaskFormSection
+        :form="form"
+        :errors="errors"
+        :workers="workers"
+        :machines="machines"
+        :disabled="disabled"
+      />
+    `,
+  }),
+};
+```
+
+### 7.5 テーブルコンポーネント（状態バリエーション）
+
+```typescript
+// sections/tasks/TaskTableSection/TaskTableSection.stories.ts
+const mockTasks = [
+  {
+    id: "task-1",
+    workDate: "2024-01-15",
+    workers: [{ id: "w1", name: "山田太郎" }],
+    machine: { id: "m1", name: "掘削機A" },
+    materials: [],
+  },
+];
 
 // 通常表示
 export const Default: Story = {
   args: {
-    items: [
-      { id: '1', name: '商品A', price: 1000 },
-      { id: '2', name: '商品B', price: 2000 },
-      { id: '3', name: '商品C', price: 3000 },
-    ],
+    tasks: mockTasks,
+    isLoading: false,
+    selectedTaskId: null,
   },
-}
+};
 
-// 空の状態
+// ローディング中
+export const Loading: Story = {
+  args: {
+    tasks: [],
+    isLoading: true,
+    selectedTaskId: null,
+  },
+};
+
+// データなし
 export const Empty: Story = {
   args: {
-    items: [],
+    tasks: [],
+    isLoading: false,
+    selectedTaskId: null,
   },
-}
+};
 
 // 大量データ
 export const ManyItems: Story = {
   args: {
-    items: Array.from({ length: 50 }, (_, i) => ({
-      id: String(i + 1),
-      name: `商品${i + 1}`,
-      price: (i + 1) * 100,
+    tasks: Array.from({ length: 50 }, (_, i) => ({
+      id: `task-${i + 1}`,
+      workDate: `2024-01-${String(i + 10).padStart(2, "0")}`,
+      workers: [{ id: `w${i}`, name: `作業者${i + 1}` }],
+      machine: { id: `m${i % 3}`, name: `機械${String.fromCharCode(65 + (i % 3))}` },
+      materials: [],
     })),
+    isLoading: false,
+    selectedTaskId: null,
   },
-}
-```
-
-### フォーム Section の Story 例
-
-```typescript
-// pages/items/sections/ItemFormSection.stories.ts
-import type { Meta, StoryObj } from '@storybook/vue3'
-import ItemFormSection from './ItemFormSection.vue'
-
-const meta: Meta<typeof ItemFormSection> = {
-  title: 'sections/ItemFormSection',
-  component: ItemFormSection,
-}
-
-export default meta
-type Story = StoryObj<typeof ItemFormSection>
-
-// 初期状態
-export const Default: Story = {
-  args: {
-    form: { name: '', price: 0 },
-    errors: {},
-    canSubmit: false,
-    submitting: false,
-  },
-}
-
-// 入力済み
-export const Filled: Story = {
-  args: {
-    form: { name: '新商品', price: 1500 },
-    errors: {},
-    canSubmit: true,
-    submitting: false,
-  },
-}
-
-// エラーあり
-export const WithErrors: Story = {
-  args: {
-    form: { name: '', price: -100 },
-    errors: {
-      name: '商品名は必須です',
-      price: '価格は0以上にしてください',
-    },
-    canSubmit: false,
-    submitting: false,
-  },
-}
-
-// 送信中
-export const Submitting: Story = {
-  args: {
-    form: { name: '新商品', price: 1500 },
-    errors: {},
-    canSubmit: false,
-    submitting: true,
-  },
-}
-
-// 無効状態
-export const Disabled: Story = {
-  args: {
-    form: { name: '既存商品', price: 1000 },
-    errors: {},
-    canSubmit: false,
-    submitting: false,
-    disabled: true,
-  },
-}
+};
 ```
 
 ---
 
-## 必須 Story チェックリスト
+## 8. 必須 Story チェックリスト
 
-新しいコンポーネントを作ったら、最低限以下の Story を用意してください：
+新しいコンポーネントを作ったら、最低限以下の Story を用意してください。
 
 ### 共通 UI（Button, TextField など）
 
@@ -338,41 +713,7 @@ export const Disabled: Story = {
 - [ ] Disabled / Readonly（操作不可）
 - [ ] ManyItems（大量データ）※リスト系の場合
 
----
-
-## Storybook の起動方法
-
-```bash
-# プロジェクトルートで
-npm run storybook
-# または
-pnpm storybook
-```
-
-ブラウザで `http://localhost:6006` が開きます。
-
----
-
-## ファイル配置ルール
-
-```
-src/
-├── components/
-│   └── Button/
-│       ├── Button.vue
-│       └── Button.stories.ts   # 同じフォルダに配置
-└── pages/
-    └── items/
-        └── sections/
-            ├── ItemsTableSection.vue
-            └── ItemsTableSection.stories.ts
-```
-
-**ルール：Story ファイルはコンポーネントと同じフォルダに配置**
-
----
-
-## レビュー時のセルフチェック
+### レビュー時のセルフチェック
 
 PR を出す前に確認してください：
 
@@ -384,66 +725,109 @@ PR を出す前に確認してください：
 
 ---
 
-## よくある NG 例
+## 9. 開発フローへの組み込み
 
-### ❌ Story が 1 つしかない
+### 起動方法
 
-```typescript
-// ❌ NG
-export const Default: Story = {
-  args: { /* ... */ }
-}
-// これだけ
+```bash
+# プロジェクトルートで
+pnpm storybook
 ```
 
-→ 最低でも Default, Disabled, Error の 3 パターンは用意する
+ブラウザで http://localhost:6006 が開きます。
 
-### ❌ コンポーネント内で API を呼んでいる
+### 画面構成
 
-```typescript
-// ❌ NG: Storybook で動かせない
-onMounted(async () => {
-  items.value = await fetchItems()
-})
+```
++------------------+--------------------------------------+
+| サイドバー        |  Canvas                               |
+|                  |  +--------------------------------+  |
+| ▼ sections       |  |                                |  |
+|   ▼ tasks        |  |    コンポーネント表示            |  |
+|     TaskTable... |  |                                |  |
+|     TaskForm...  |  +--------------------------------+  |
+|                  |                                      |
+| ▼ shared         |  [Controls]  [Actions]  [Docs]       |
+|   ▼ ui           |  Props を変更して動作確認            |
+|     AppHeader    |                                      |
++------------------+--------------------------------------+
 ```
 
-→ props で受け取る設計に変更する
+### おすすめ開発フロー
 
-### ❌ Store を import している
-
-```typescript
-// ❌ NG
-import { useItemStore } from '@/stores/item'
 ```
-
-→ Section は Store に依存しない設計にする
-
----
-
-## Storybook と設計の関係
-
-Storybook は「設計の健康診断」です。
-
-| Storybook で起きること | 意味 |
-|----------------------|------|
-| Story が書きにくい | 依存が多すぎる |
-| props が多すぎる | 責務が広すぎる |
-| 状態を説明できない | ロジックが UI に漏れている |
-| Story が増えすぎる | コンポーネントを分割すべき |
-
-Storybook で違和感を感じたら、設計を見直すタイミングです。
-
----
-
-## 実務でのおすすめフロー
-
 1. コンポーネントを作る
-2. **まず Storybook で単体起動する**
+2. まず Storybook で単体起動する
 3. 状態違いを Story として洗い出す
 4. props / emit が自然か確認
 5. 問題なければ画面に組み込む
+```
 
-「画面を見てから調整」ではなく「**Storybook で固めてから組み込む**」
+**「画面を見てから調整」ではなく「Storybook で固めてから組み込む」**
+
+---
+
+## 10. トラブルシューティング
+
+### Vuetify コンポーネントが正しく表示されない
+
+**原因:** `<v-app>` でラップされていない
+
+**解決:** `preview.ts` の decorators を確認
+
+```typescript
+decorators: [
+  (story) => ({
+    components: { story },
+    template: "<v-app><v-main><story /></v-main></v-app>",
+  }),
+],
+```
+
+### パスエイリアス（@/）が解決されない
+
+**原因:** Vite 設定が Storybook に継承されていない
+
+**解決:** `main.ts` の `viteFinal` で設定
+
+```typescript
+import path from 'path';
+
+viteFinal: async (config) => {
+  config.resolve = config.resolve || {};
+  config.resolve.alias = {
+    ...config.resolve.alias,
+    '@': path.resolve(__dirname, '../src'),
+  };
+  return config;
+},
+```
+
+### Story ファイルが認識されない
+
+**原因:** stories パターンに一致していない
+
+**解決:** `main.ts` の stories 設定を確認
+
+```typescript
+stories: [
+  "../src/**/*.stories.@(js|jsx|mjs|ts|tsx)"
+]
+```
+
+---
+
+## まとめ
+
+| ポイント | 説明 |
+|----------|------|
+| **対象を絞る** | sections と shared/ui に限定 |
+| **Props で完結** | API やルーティングに依存しない |
+| **バリエーション** | 正常系・エッジケースを網羅 |
+| **Vuetify 統合** | preview.ts で v-app ラップ必須 |
+| **設計の健康診断** | Story が書きにくい = 設計を見直すサイン |
+
+Storybook を活用することで、コンポーネントの品質向上と開発効率アップを実現できます。
 
 ---
 
