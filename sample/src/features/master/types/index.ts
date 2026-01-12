@@ -30,6 +30,8 @@ export interface Material {
   name: string;
   /** 材料カテゴリ */
   category: string;
+  /** デフォルト単位ID */
+  defaultUnitId: string;
 }
 
 /** 単位マスタ */

@@ -4,6 +4,10 @@
 
 import { http, HttpResponse, delay } from "msw";
 import { tasksNormalFixture, type TaskFixture } from "../fixtures/tasks";
+import { workersFixture } from "../fixtures/masters/workers";
+import { machinesFixture } from "../fixtures/masters/machines";
+import { materialsFixture } from "../fixtures/masters/materials";
+import { unitsFixture } from "../fixtures/masters/units";
 
 // インメモリデータストア（ミューテーション用）
 let tasksData: TaskFixture[] = [...tasksNormalFixture];
@@ -13,6 +17,60 @@ let tasksData: TaskFixture[] = [...tasksNormalFixture];
  */
 export function resetTasksData() {
   tasksData = [...tasksNormalFixture];
+}
+
+/**
+ * タスク登録/更新リクエストボディの型
+ */
+interface TaskRequestBody {
+  workDate: string;
+  workerIds: string[];
+  machineId: string;
+  materials: { id: string; amount: number; unitId: string }[];
+}
+
+/**
+ * リクエストからTaskFixture形式に変換
+ */
+function convertRequestToTask(
+  body: TaskRequestBody
+): Omit<TaskFixture, "id" | "createdAt" | "updatedAt"> {
+  // 作業者IDから作業者情報を取得
+  const workers = body.workerIds
+    .map((id) => {
+      const worker = workersFixture.find((w) => w.id === id);
+      return worker ? { id: worker.id, name: worker.name } : null;
+    })
+    .filter((w): w is { id: string; name: string } => w !== null);
+
+  // 機械IDから機械情報を取得
+  const machineData = machinesFixture.find((m) => m.id === body.machineId);
+  const machine = machineData
+    ? { id: machineData.id, name: machineData.name }
+    : { id: body.machineId, name: "" };
+
+  // 材料IDから材料情報を取得
+  const materials = body.materials
+    .map((m) => {
+      const materialData = materialsFixture.find((mat) => mat.id === m.id);
+      const unitData = unitsFixture.find((u) => u.id === m.unitId);
+      if (!materialData) return null;
+      return {
+        id: materialData.id,
+        name: materialData.name,
+        amount: m.amount,
+        unitId: m.unitId,
+        unitName: unitData?.name || "",
+      };
+    })
+    .filter((m): m is TaskFixture["materials"][0] => m !== null);
+
+  return {
+    workDate: body.workDate,
+    workers,
+    machine,
+    materials,
+  };
 }
 
 /**
@@ -95,14 +153,14 @@ export const createTaskHandler = http.post(
   async ({ request }) => {
     await delay(300);
 
-    const body = (await request.json()) as Omit<
-      TaskFixture,
-      "id" | "createdAt" | "updatedAt"
-    >;
+    const body = (await request.json()) as TaskRequestBody;
     const now = new Date().toISOString();
 
+    // IDからマスタ情報を参照して変換
+    const taskData = convertRequestToTask(body);
+
     const newTask: TaskFixture = {
-      ...body,
+      ...taskData,
       id: `t${String(tasksData.length + 1).padStart(3, "0")}`,
       createdAt: now,
       updatedAt: now,
@@ -129,11 +187,15 @@ export const updateTaskHandler = http.put(
       return HttpResponse.json({ message: "Task not found" }, { status: 404 });
     }
 
-    const body = (await request.json()) as Partial<TaskFixture>;
+    const body = (await request.json()) as TaskRequestBody;
+
+    // IDからマスタ情報を参照して変換
+    const taskData = convertRequestToTask(body);
+
     const updatedTask: TaskFixture = {
-      ...tasksData[taskIndex],
-      ...body,
+      ...taskData,
       id: tasksData[taskIndex].id, // IDは変更不可
+      createdAt: tasksData[taskIndex].createdAt, // 作成日時は変更不可
       updatedAt: new Date().toISOString(),
     };
 

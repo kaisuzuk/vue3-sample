@@ -274,18 +274,18 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/tasks',
-    name: 'TaskList',
+    name: 'task-list',
     // 遅延読み込み（コード分割）
     component: () => import('@/pages/tasks/TaskListPage.vue'),
   },
   {
     path: '/tasks/new',
-    name: 'TaskCreate',
+    name: 'task-create',
     component: () => import('@/pages/tasks/TaskCreatePage.vue'),
   },
   {
     path: '/tasks/:id/edit',
-    name: 'TaskEdit',
+    name: 'task-edit',
     component: () => import('@/pages/tasks/TaskEditPage.vue'),
   },
 ]

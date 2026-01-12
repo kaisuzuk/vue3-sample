@@ -160,6 +160,208 @@ export const deleteItemHandler = http.delete('/api/items/:id', () => {
 })
 ```
 
+---
+
+## インメモリストアパターン（POST/PUT/DELETE の反映）
+
+### 課題
+
+上記の基本的な handler の書き方では、以下のような問題があります：
+
+```
+1. POST /api/items で商品を登録
+2. GET /api/items で一覧を取得
+→ 登録した商品が一覧に含まれない！
+```
+
+これは、各 handler が独立しており、**データの状態を共有していない**ためです。
+
+### 解決策：インメモリストアパターン
+
+**インメモリストア**を使って、handler 間でデータを共有します。
+
+```typescript
+// fe-libs/mocks/handlers/items.handlers.ts
+import { http, HttpResponse, delay } from 'msw'
+import { itemsNormalFixture, type ItemFixture } from '../fixtures/items'
+
+// ===================================
+// インメモリデータストア
+// ===================================
+
+// fixture をコピーして初期データとする
+let itemsData: ItemFixture[] = [...itemsNormalFixture]
+
+/**
+ * データをリセット（テスト用）
+ * Vitest などからテストごとにリセットできる
+ */
+export function resetItemsData() {
+  itemsData = [...itemsNormalFixture]
+}
+
+// ===================================
+// Handlers
+// ===================================
+
+/**
+ * GET /api/items - 一覧取得
+ * インメモリストアからデータを返す
+ */
+export const getItemsHandler = http.get('/api/items', async () => {
+  await delay(100)
+  return HttpResponse.json({ items: itemsData })
+})
+
+/**
+ * POST /api/items - 新規作成
+ * インメモリストアにデータを追加
+ */
+export const createItemHandler = http.post('/api/items', async ({ request }) => {
+  await delay(200)
+  
+  const body = await request.json() as Omit<ItemFixture, 'id' | 'createdAt'>
+  const now = new Date().toISOString()
+  
+  const newItem: ItemFixture = {
+    ...body,
+    id: `item-${itemsData.length + 1}`,
+    createdAt: now,
+  }
+  
+  // インメモリストアに追加
+  itemsData.push(newItem)
+  
+  return HttpResponse.json(newItem, { status: 201 })
+})
+
+/**
+ * PUT /api/items/:id - 更新
+ * インメモリストアのデータを更新
+ */
+export const updateItemHandler = http.put('/api/items/:id', async ({ params, request }) => {
+  await delay(200)
+  
+  const { id } = params
+  const itemIndex = itemsData.findIndex(item => item.id === id)
+  
+  if (itemIndex === -1) {
+    return HttpResponse.json({ message: 'Not Found' }, { status: 404 })
+  }
+  
+  const body = await request.json() as Partial<ItemFixture>
+  
+  // インメモリストアを更新
+  itemsData[itemIndex] = {
+    ...itemsData[itemIndex],
+    ...body,
+    id: itemsData[itemIndex].id, // ID は変更不可
+  }
+  
+  return HttpResponse.json(itemsData[itemIndex])
+})
+
+/**
+ * DELETE /api/items/:id - 削除
+ * インメモリストアからデータを削除
+ */
+export const deleteItemHandler = http.delete('/api/items/:id', async ({ params }) => {
+  await delay(200)
+  
+  const { id } = params
+  const itemIndex = itemsData.findIndex(item => item.id === id)
+  
+  if (itemIndex === -1) {
+    return HttpResponse.json({ message: 'Not Found' }, { status: 404 })
+  }
+  
+  // インメモリストアから削除
+  itemsData.splice(itemIndex, 1)
+  
+  return new HttpResponse(null, { status: 204 })
+})
+```
+
+### ポイント
+
+| 要素 | 説明 |
+|------|------|
+| `let itemsData` | モジュールスコープの変数。handler 間で共有される |
+| `[...itemsNormalFixture]` | fixture のコピーを使う（元データを変更しない） |
+| `resetItemsData()` | テストやシナリオ切り替え時にリセット |
+| `itemsData.push()` | POST 時に配列に追加 |
+| `itemsData[index] = ...` | PUT 時に更新 |
+| `itemsData.splice()` | DELETE 時に削除 |
+
+### 注意事項
+
+```typescript
+// ❌ NG: fixture を直接変更してしまう
+let itemsData = itemsNormalFixture
+itemsData.push(newItem) // fixture 自体が変わってしまう！
+
+// ✅ OK: スプレッド演算子でコピーを作る
+let itemsData = [...itemsNormalFixture]
+itemsData.push(newItem) // コピーを変更するだけ
+```
+
+### IDからマスタ情報を参照する
+
+フォームでは ID のみを送信し、一覧ではマスタ情報（名前など）も必要な場合があります。
+この場合、handler 内でマスタの fixture を参照して変換します。
+
+```typescript
+import { workersFixture } from '../fixtures/masters/workers'
+import { machinesFixture } from '../fixtures/masters/machines'
+
+/**
+ * リクエストからレスポンス形式に変換
+ */
+function convertRequestToItem(body: RequestBody): ItemFixture {
+  // 作業者ID → 作業者情報
+  const workers = body.workerIds
+    .map(id => workersFixture.find(w => w.id === id))
+    .filter((w): w is Worker => w !== null)
+    .map(w => ({ id: w.id, name: w.name }))
+  
+  // 機械ID → 機械情報
+  const machine = machinesFixture.find(m => m.id === body.machineId)
+  
+  return {
+    workDate: body.workDate,
+    workers,
+    machine: machine ? { id: machine.id, name: machine.name } : null,
+  }
+}
+
+export const createItemHandler = http.post('/api/items', async ({ request }) => {
+  const body = await request.json() as RequestBody
+  
+  // ID から名前情報を付与
+  const itemData = convertRequestToItem(body)
+  
+  const newItem = {
+    ...itemData,
+    id: `item-${itemsData.length + 1}`,
+    createdAt: new Date().toISOString(),
+  }
+  
+  itemsData.push(newItem)
+  return HttpResponse.json(newItem, { status: 201 })
+})
+```
+
+### ブラウザリロード時の挙動
+
+インメモリストアはブラウザのメモリ上に存在するため、**ページをリロードするとリセット**されます。
+これは意図した挙動であり、開発中にいつでも初期状態に戻せる利点があります。
+
+```
+リロード前: fixture + 追加したデータ
+    ↓ リロード
+リロード後: fixture のみ（初期状態）
+```
+
 ### ハンドラーの集約
 
 ```typescript
