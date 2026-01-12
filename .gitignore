@@ -1,2 +1,45 @@
-.history
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.local
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.history/
+
+# OS files
+.DS_Store
 .ds_store
+Thumbs.db
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# TypeScript
+*.tsbuildinfo
+
+# Storybook
+storybook-static/
+
+# MSW
+public/mockServiceWorker.js
