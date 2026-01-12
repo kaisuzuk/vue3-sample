@@ -1,0 +1,551 @@
+# MSW（Mock Service Worker）入門
+
+このドキュメントでは、MSW を使ったことがない人向けに、「MSW とは何か」「なぜ使うのか」「どう使うのか」を説明します。
+
+---
+
+## MSW とは
+
+### 一言で言うと
+
+MSW は、**フロントエンドから呼び出される API 通信を横取りして、あらかじめ定義したレスポンスを返す仕組み**です。
+
+### Vue2 時代の開発（モックなし）
+
+```
+1. バックエンド API が完成するのを待つ
+2. API が動くサーバーを起動する
+3. フロントエンドを開発する
+4. エラー系の確認は難しい（サーバー側で再現が必要）
+```
+
+問題点：
+- バックエンドの完成を待たないと開発できない
+- エラー系（500 エラーなど）の再現が難しい
+- ネットワーク遅延の再現ができない
+
+### MSW があると
+
+```
+1. API 仕様（Swagger など）を見る
+2. MSW でモック（偽の API）を作る
+3. バックエンドなしでフロントエンドを開発する
+4. 正常系・エラー系・遅延を自由に切り替えられる
+```
+
+メリット：
+- バックエンドを待たずに開発できる
+- エラー系のテストが簡単
+- 開発環境のセットアップが楽
+
+---
+
+## MSW の仕組み
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ ブラウザ                                                     │
+│                                                             │
+│  ┌──────────┐    fetch('/api/items')   ┌──────────┐         │
+│  │   Vue    │ ──────────────────────►  │   MSW    │         │
+│  │   App    │                          │ (横取り)  │         │
+│  │          │ ◄──────────────────────  │          │         │
+│  └──────────┘    モックレスポンス         └──────────┘         │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+          ↑
+          │ 本番環境では MSW なしで
+          │ 実際のサーバーに接続
+          ▼
+┌─────────────────────────────────────────────────────────────┐
+│ バックエンドサーバー（開発時は不要）                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+MSW は Service Worker を使ってブラウザレベルで通信を横取りするため、**フロントエンドのコードを変更せずに**モックを差し込めます。
+
+---
+
+## MSW の構成要素
+
+| 用語 | 説明 | 例 |
+|------|------|-----|
+| **handler** | 1 つの API エンドポイントに対する振る舞い | GET /api/items → 商品一覧を返す |
+| **fixture** | モックで返すデータ | `[{ id: '1', name: '商品A' }, ...]` |
+| **scenario** | handler のセット（状況別） | 正常系セット、エラー系セット |
+
+---
+
+## ディレクトリ構成
+
+このプロジェクトでは、MSW の定義（handler / fixture / scenario）は Vue2 / Vue3 で共通利用するため、`fe-libs/` に配置します。
+
+```
+fe-libs/
+├── mocks/                   # MSW モック定義（主な作業場所）
+│   ├── handlers/            # API ごとの handler
+│   │   ├── index.ts
+│   │   ├── items.handlers.ts
+│   │   └── auth.handlers.ts
+│   ├── fixtures/            # レスポンス用データ
+│   │   ├── items.normal.ts
+│   │   ├── items.empty.ts
+│   │   ├── items.large.ts
+│   │   └── bugs/            # バグ再現用（JSON 許可）
+│   ├── scenarios/           # handler セット（切り替え用）
+│   │   └── items.scenarios.ts
+│   └── index.ts
+│
+├── types/                   # API DTO 型定義
+│   ├── generated/           # OpenAPI から自動生成（編集禁止）
+│   └── index.ts
+│
+└── openapi/                 # Swagger / OpenAPI 定義
+
+vue3-app/src/
+├── mocks/
+│   └── browser.ts           # MSW 初期化（基盤担当が管理）
+└── devtools/msw-harness/    # MSW 動作確認用（dev-only）
+    ├── scenarioRegistry.ts  # scenario の登録
+    ├── apiCatalog.ts        # 確認したい API の登録
+    └── MswHarnessPage.vue   # 確認画面（基盤担当が管理）
+```
+
+**重要：**
+- `fe-libs/mocks/` が handler / fixture / scenario の作業場所
+- `vue3-app/src/mocks/browser.ts` は編集不要（基盤担当が管理）
+
+---
+
+## handler の書き方
+
+### 基本構造
+
+```typescript
+// fe-libs/mocks/handlers/items.handlers.ts
+import { http, HttpResponse } from 'msw'
+import { itemsNormal } from '../fixtures/items.normal'
+
+// GET /api/items → 商品一覧を返す
+export const getItemsHandler = http.get('/api/items', () => {
+  return HttpResponse.json(itemsFixture)
+})
+
+// GET /api/items/:id → 商品詳細を返す
+export const getItemHandler = http.get('/api/items/:id', ({ params }) => {
+  const { id } = params
+  const item = itemsFixture.find(i => i.id === id)
+  
+  if (!item) {
+    return HttpResponse.json(
+      { message: 'Not Found' },
+      { status: 404 }
+    )
+  }
+  
+  return HttpResponse.json(item)
+})
+
+// POST /api/items → 商品を作成
+export const createItemHandler = http.post('/api/items', async ({ request }) => {
+  const body = await request.json()
+  
+  const newItem = {
+    id: String(Date.now()),
+    ...body,
+    createdAt: new Date().toISOString()
+  }
+  
+  return HttpResponse.json(newItem, { status: 201 })
+})
+
+// DELETE /api/items/:id → 商品を削除
+export const deleteItemHandler = http.delete('/api/items/:id', () => {
+  return new HttpResponse(null, { status: 204 })
+})
+```
+
+### ハンドラーの集約
+
+```typescript
+// fe-libs/mocks/handlers/index.ts
+import {
+  getItemsHandler,
+  getItemHandler,
+  createItemHandler,
+  deleteItemHandler,
+} from './items.handlers'
+import { loginHandler, logoutHandler } from './auth.handlers'
+
+export const handlers = [
+  // Items
+  getItemsHandler,
+  getItemHandler,
+  createItemHandler,
+  deleteItemHandler,
+  // Auth
+  loginHandler,
+  logoutHandler,
+]
+```
+
+---
+
+## fixture の書き方
+
+### 基本ルール
+
+fixture は **API が実際に返すレスポンスデータそのもの** です。
+
+```typescript
+// fe-libs/mocks/fixtures/items.normal.ts
+
+// 正常系データ
+export const itemsNormal = [
+  {
+    id: '1',
+    name: '商品A',
+    price: 1000,
+    createdAt: '2024-01-01T00:00:00Z'
+  },
+  {
+    id: '2',
+    name: '商品B',
+    price: 2000,
+    createdAt: '2024-01-02T00:00:00Z'
+  },
+  {
+    id: '3',
+    name: '商品C',
+    price: 3000,
+    createdAt: '2024-01-03T00:00:00Z'
+  }
+]
+
+// 空データ（別ファイルに分ける）
+// fe-libs/mocks/fixtures/items.empty.ts
+export const itemsEmpty: typeof itemsNormal = []
+```
+
+```typescript
+// 大量データ（境界値テスト用）
+// fe-libs/mocks/fixtures/items.large.ts
+export const itemsLarge = Array.from({ length: 500 }, (_, i) => ({
+  id: String(i + 1),
+  name: `商品${i + 1}`,
+  price: (i + 1) * 100,
+  createdAt: new Date(2024, 0, i + 1).toISOString()
+}))
+```
+
+### fixture の禁止事項
+
+- ❌ UI 都合でデータ構造を変える
+- ❌ プロパティを省略する
+- ❌ 型を変える（string を number にするなど）
+- ❌ 乱数や現在時刻を使う（再現性がなくなる）
+
+→ **API 仕様（Swagger）どおりに作る**
+
+---
+
+## 異常系（エラー）の handler
+
+### 400 Bad Request
+
+```typescript
+export const createItemBadRequestHandler = http.post('/api/items', () => {
+  return HttpResponse.json(
+    {
+      message: 'Validation Error',
+      errors: {
+        name: '商品名は必須です',
+        price: '価格は0以上にしてください'
+      }
+    },
+    { status: 400 }
+  )
+})
+```
+
+### 401 Unauthorized
+
+```typescript
+export const getItemsUnauthorizedHandler = http.get('/api/items', () => {
+  return HttpResponse.json(
+    { message: 'Unauthorized' },
+    { status: 401 }
+  )
+})
+```
+
+### 404 Not Found
+
+```typescript
+export const getItemNotFoundHandler = http.get('/api/items/:id', () => {
+  return HttpResponse.json(
+    { message: 'Not Found' },
+    { status: 404 }
+  )
+})
+```
+
+### 500 Internal Server Error
+
+```typescript
+export const getItemsServerErrorHandler = http.get('/api/items', () => {
+  return new HttpResponse(null, { status: 500 })
+})
+```
+
+### ネットワークエラー
+
+```typescript
+export const getItemsNetworkErrorHandler = http.get('/api/items', () => {
+  return HttpResponse.error()
+})
+```
+
+### 遅延（ローディング確認用）
+
+```typescript
+import { delay } from 'msw'
+
+export const getItemsDelayHandler = http.get('/api/items', async () => {
+  await delay(3000) // 3秒遅延
+  return HttpResponse.json(itemsFixture)
+})
+```
+
+---
+
+## scenario（シナリオ）
+
+シナリオは **「どの handler を有効にするか」のセット** です。
+
+**重要：** scenario は handler をまとめるだけの存在です。切り替えロジックや条件分岐は書きません。
+
+```typescript
+// fe-libs/mocks/scenarios/items.scenarios.ts
+import {
+  getItemsNormalHandler,
+  getItemHandler,
+  createItemHandler,
+  getItemsEmptyHandler,
+  getItemsServerErrorHandler,
+} from '../handlers/items.handlers'
+
+export const itemsScenarios = {
+  // 正常系
+  normal: [
+    getItemsNormalHandler,
+    getItemHandler,
+    createItemHandler,
+  ],
+  
+  // 空データ
+  empty: [
+    getItemsEmptyHandler,
+    getItemHandler,
+    createItemHandler,
+  ],
+  
+  // サーバーエラー
+  error: [
+    getItemsServerErrorHandler,
+  ],
+  
+  // 境界値
+  large: [
+    getItemsLargeHandler,
+    getItemHandler,
+    createItemHandler,
+  ],
+} as const
+```
+
+### シナリオの使い分け
+
+| シナリオ | 用途 |
+|---------|------|
+| normal | 通常の開発 |
+| empty | 空表示の確認 |
+| error | エラーハンドリングの確認 |
+| slow | ローディング表示の確認 |
+
+---
+
+## 実際の開発フロー
+
+### 1. API 仕様を確認する
+
+Swagger や API ドキュメントを見て、以下を把握します：
+
+- エンドポイント（URL、メソッド）
+- リクエストの形式
+- レスポンスの形式
+- エラーレスポンスの形式
+
+### 2. fixture を作成する
+
+```typescript
+// fe-libs/mocks/fixtures/items.normal.ts
+export const itemsNormal = [
+  { id: '1', name: '商品A', price: 1000 },
+  // ...
+]
+```
+
+### 3. handler を作成する
+
+```typescript
+// fe-libs/mocks/handlers/items.handlers.ts
+export const getItemsNormalHandler = http.get('/api/items', () => {
+  return HttpResponse.json(itemsNormal)
+})
+```
+
+### 4. handlers/index.ts に追加する
+
+```typescript
+// fe-libs/mocks/handlers/index.ts
+import { getItemsNormalHandler } from './items.handlers'
+
+export const handlers = [
+  getItemsHandler,
+  // ...
+]
+```
+
+### 5. 動作確認する
+
+開発サーバーを起動して、API が期待通りに動くか確認します。
+
+---
+
+## よくある NG 例
+
+### ❌ UI 都合で fixture を変える
+
+```typescript
+// ❌ NG: API が返さない形式になっている
+export const itemsFixture = [
+  {
+    id: '1',
+    name: '商品A',
+    displayPrice: '¥1,000', // ← UI 用に加工している
+  }
+]
+```
+
+→ 加工は UI 層で行う。fixture は API そのままの形式で。
+
+### ❌ handler 内で複雑なロジックを書く
+
+```typescript
+// ❌ NG: handler が複雑になっている
+export const getItemsHandler = http.get('/api/items', ({ request }) => {
+  const url = new URL(request.url)
+  const category = url.searchParams.get('category')
+  const minPrice = url.searchParams.get('minPrice')
+  const maxPrice = url.searchParams.get('maxPrice')
+  
+  let result = itemsFixture
+  if (category) {
+    result = result.filter(i => i.category === category)
+  }
+  if (minPrice) {
+    result = result.filter(i => i.price >= Number(minPrice))
+  }
+  // ... 複雑なフィルタリング
+  
+  return HttpResponse.json(result)
+})
+```
+
+→ 基本的なパターンだけ作り、複雑なケースは fixture を分ける。
+
+### ❌ 乱数や現在時刻を使う
+
+```typescript
+// ❌ NG: 毎回結果が変わる
+export const createItemHandler = http.post('/api/items', async ({ request }) => {
+  const body = await request.json()
+  return HttpResponse.json({
+    id: Math.random().toString(), // ← 乱数
+    ...body,
+    createdAt: new Date().toISOString() // ← 現在時刻
+  })
+})
+```
+
+→ 再現性が失われる。固定値を使うか、テスト用に決まった値を返す。
+
+---
+
+## 担当範囲について
+
+### やってよいこと
+
+- ✅ `fe-libs/mocks/handlers/` に handler を作成
+- ✅ `fe-libs/mocks/fixtures/` に fixture を作成
+- ✅ `fe-libs/mocks/scenarios/` に scenario を定義
+- ✅ 正常系・異常系レスポンスの定義
+- ✅ `devtools/msw-harness/scenarioRegistry.ts` への登録
+- ✅ `devtools/msw-harness/apiCatalog.ts` への登録
+
+### やってはいけないこと
+
+- ❌ MSW の初期化処理を変更する（`setupWorker` / `worker.start`）
+- ❌ `vue3-app/src/mocks/browser.ts` を編集する
+- ❌ シナリオ切り替えのロジックを書く（if / switch など）
+- ❌ fixture を UI 都合で変更する
+- ❌ `fe-libs/types/generated/` を直接編集する
+- ❌ Harness の UI 構造を変更する
+
+初期化やシナリオ切り替えのロジックは基盤担当が行います。
+
+---
+
+## レビュー時のセルフチェック
+
+PR を出す前に確認してください：
+
+- [ ] fixture は API 仕様どおりの構造になっているか
+- [ ] handler はシンプルか（複雑なロジックがないか）
+- [ ] 正常系と異常系の両方を用意したか
+- [ ] 乱数や現在時刻を使っていないか
+- [ ] `fe-libs/mocks/handlers/index.ts` に追加したか
+- [ ] scenario でまとめているか（切り替えロジックは書いていないか）
+
+---
+
+## 参考：プロジェクトの MSW 構成
+
+プロジェクトの `fe-libs/mocks/` フォルダを参照してください：
+
+```
+fe-libs/mocks/
+├── handlers/
+│   ├── index.ts
+│   ├── auth.handlers.ts
+│   ├── items.handlers.ts
+│   └── wizard.handlers.ts
+├── fixtures/
+│   ├── items.normal.ts
+│   ├── items.empty.ts
+│   ├── items.large.ts
+│   └── bugs/
+├── scenarios/
+│   └── items.scenarios.ts
+└── index.ts
+
+vue3-app/src/mocks/
+└── browser.ts           # 初期化（編集不要）
+```
+
+---
+
+## 次のステップ
+
+MSW の基本を理解したら、[07_用語集](./07_用語集.md) でプロジェクト固有の用語を確認しましょう。
