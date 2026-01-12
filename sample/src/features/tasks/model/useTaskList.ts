@@ -6,12 +6,33 @@ import { ref, computed, watch } from "vue";
 import type { Task, TaskListQuery, TaskListResponse } from "../types";
 
 /**
+ * フィルター条件
+ */
+export interface TaskFilter {
+  workDateFrom: string;
+  workDateTo: string;
+  workerIds: string[];
+  materialIds: string[];
+}
+
+/**
+ * 初期フィルター値
+ */
+export const initialFilter: TaskFilter = {
+  workDateFrom: "",
+  workDateTo: "",
+  workerIds: [],
+  materialIds: [],
+};
+
+/**
  * タスク一覧を管理する Composable
  *
  * 責務:
  * - タスク一覧データの取得
  * - ページネーション状態管理
  * - ソート状態管理
+ * - フィルター状態管理
  * - 選択タスク状態管理
  */
 export function useTaskList() {
@@ -33,6 +54,9 @@ export function useTaskList() {
   const sortBy = ref<string>("workDate");
   const sortOrder = ref<"asc" | "desc">("desc");
 
+  // フィルター
+  const filter = ref<TaskFilter>({ ...initialFilter });
+
   // ===================================
   // Computed
   // ===================================
@@ -46,6 +70,29 @@ export function useTaskList() {
   });
 
   /**
+   * フィルターが適用されているか
+   */
+  const hasFilter = computed(() => {
+    return (
+      filter.value.workDateFrom !== "" ||
+      filter.value.workDateTo !== "" ||
+      filter.value.workerIds.length > 0 ||
+      filter.value.materialIds.length > 0
+    );
+  });
+
+  /**
+   * 適用中のフィルター件数
+   */
+  const filterCount = computed(() => {
+    let count = 0;
+    if (filter.value.workDateFrom || filter.value.workDateTo) count++;
+    if (filter.value.workerIds.length > 0) count++;
+    if (filter.value.materialIds.length > 0) count++;
+    return count;
+  });
+
+  /**
    * API クエリパラメータ
    */
   const query = computed<TaskListQuery>(() => ({
@@ -53,6 +100,16 @@ export function useTaskList() {
     limit: limit.value,
     sortBy: sortBy.value,
     sortOrder: sortOrder.value,
+    workDateFrom: filter.value.workDateFrom || undefined,
+    workDateTo: filter.value.workDateTo || undefined,
+    workerIds:
+      filter.value.workerIds.length > 0
+        ? filter.value.workerIds.join(",")
+        : undefined,
+    materialIds:
+      filter.value.materialIds.length > 0
+        ? filter.value.materialIds.join(",")
+        : undefined,
   }));
 
   /**
@@ -85,6 +142,20 @@ export function useTaskList() {
         sortBy: sortBy.value,
         sortOrder: sortOrder.value,
       });
+
+      // フィルター条件を追加
+      if (filter.value.workDateFrom) {
+        params.set("workDateFrom", filter.value.workDateFrom);
+      }
+      if (filter.value.workDateTo) {
+        params.set("workDateTo", filter.value.workDateTo);
+      }
+      if (filter.value.workerIds.length > 0) {
+        params.set("workerIds", filter.value.workerIds.join(","));
+      }
+      if (filter.value.materialIds.length > 0) {
+        params.set("materialIds", filter.value.materialIds.join(","));
+      }
 
       const response = await fetch(`/api/tasks?${params}`);
       if (!response.ok) {
@@ -173,6 +244,26 @@ export function useTaskList() {
     selectedTaskId.value = null;
   }
 
+  /**
+   * フィルターを適用
+   */
+  function applyFilter(newFilter: TaskFilter) {
+    filter.value = { ...newFilter };
+    page.value = 1;
+    selectedTaskId.value = null;
+    fetchTasks();
+  }
+
+  /**
+   * フィルターをクリア
+   */
+  function clearFilter() {
+    filter.value = { ...initialFilter };
+    page.value = 1;
+    selectedTaskId.value = null;
+    fetchTasks();
+  }
+
   // ===================================
   // Watchers
   // ===================================
@@ -192,11 +283,14 @@ export function useTaskList() {
     isLoading,
     error,
     selectedTaskId,
+    filter,
 
     // Computed
     selectedTask,
     query,
     pagination,
+    hasFilter,
+    filterCount,
 
     // Actions
     fetchTasks,
@@ -207,6 +301,8 @@ export function useTaskList() {
     selectTask,
     clearSelection,
     changeLimit,
+    applyFilter,
+    clearFilter,
   };
 }
 

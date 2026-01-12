@@ -3,6 +3,7 @@
   
   責務:
   - TaskTableSection と TaskDetailSidebar を統合
+  - TaskFilterDialog で絞り込み
   - useTaskList で状態管理
   - ページネーションUI
   - ページ遷移ロジック
@@ -14,9 +15,11 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { useTaskList } from '../model/useTaskList'
+import { useTaskList, type TaskFilter } from '../model/useTaskList'
+import { useMasterStore } from '@/features/master/model/useMasterStore'
 import TaskTableSection from './TaskTableSection.vue'
 import TaskDetailSidebar from './TaskDetailSidebar.vue'
+import TaskFilterDialog from './TaskFilterDialog.vue'
 
 // ===================================
 // Composable
@@ -29,16 +32,26 @@ const {
   selectedTask,
   selectedTaskId,
   pagination,
+  filter,
+  hasFilter,
+  filterCount,
   fetchTasks,
   changePage,
   changeSort,
   selectTask,
   clearSelection,
   changeLimit,
+  applyFilter,
+  clearFilter,
 } = useTaskList()
+
+const { workers, materials } = useMasterStore()
 
 // サイドバー開閉
 const isSidebarOpen = ref(false)
+
+// フィルターダイアログ開閉
+const isFilterDialogOpen = ref(false)
 
 // ===================================
 // Lifecycle
@@ -101,6 +114,27 @@ function handlePageChange(page: number) {
 function handleLimitChange(limit: number) {
   changeLimit(limit)
 }
+
+/**
+ * フィルターダイアログを開く
+ */
+function handleOpenFilter() {
+  isFilterDialogOpen.value = true
+}
+
+/**
+ * フィルター適用
+ */
+function handleApplyFilter(newFilter: TaskFilter) {
+  applyFilter(newFilter)
+}
+
+/**
+ * フィルタークリア
+ */
+function handleClearFilter() {
+  clearFilter()
+}
 </script>
 
 <template>
@@ -111,15 +145,50 @@ function handleLimitChange(limit: number) {
         <h2 class="text-h5">タスク一覧</h2>
         <p class="text-body-2 text-grey">
           全 {{ pagination.total }} 件
+          <span v-if="hasFilter" class="ml-2">
+            （絞り込み中）
+          </span>
         </p>
       </div>
-      <v-btn
+      <div class="d-flex ga-2">
+        <!-- 絞り込みボタン -->
+        <v-btn
+          variant="outlined"
+          :color="hasFilter ? 'primary' : undefined"
+          prepend-icon="mdi-filter-variant"
+          @click="handleOpenFilter"
+        >
+          絞り込み
+          <v-badge
+            v-if="filterCount > 0"
+            :content="filterCount"
+            color="primary"
+            inline
+            class="ml-1"
+          />
+        </v-btn>
+        <!-- 新規作成ボタン -->
+        <v-btn
+          color="primary"
+          prepend-icon="mdi-plus"
+          @click="handleCreate"
+        >
+          新規作成
+        </v-btn>
+      </div>
+    </div>
+
+    <!-- フィルター適用中チップ -->
+    <div v-if="hasFilter" class="mb-4">
+      <v-chip
         color="primary"
-        prepend-icon="mdi-plus"
-        @click="handleCreate"
+        variant="tonal"
+        closable
+        @click:close="handleClearFilter"
       >
-        新規作成
-      </v-btn>
+        <v-icon start>mdi-filter</v-icon>
+        絞り込み条件をクリア
+      </v-chip>
     </div>
 
     <!-- エラー表示 -->
@@ -175,6 +244,16 @@ function handleLimitChange(limit: number) {
       :is-open="isSidebarOpen"
       @close="handleSidebarClose"
       @edit="handleEdit"
+    />
+
+    <!-- フィルターダイアログ -->
+    <TaskFilterDialog
+      v-model="isFilterDialogOpen"
+      :workers="workers"
+      :materials="materials"
+      :current-filter="filter"
+      @apply="handleApplyFilter"
+      @clear="handleClearFilter"
     />
   </div>
 </template>

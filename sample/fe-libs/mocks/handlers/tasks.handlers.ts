@@ -81,6 +81,10 @@ function convertRequestToTask(
  * - limit: 1ページあたりの件数（デフォルト: 10）
  * - sortBy: ソートキー（workDate, createdAt など）
  * - sortOrder: ソート順（asc, desc）
+ * - workDateFrom: 作業日開始（YYYY-MM-DD）
+ * - workDateTo: 作業日終了（YYYY-MM-DD）
+ * - workerIds: 作業者ID（カンマ区切り）
+ * - materialIds: 材料ID（カンマ区切り）
  */
 export const getTasksHandler = http.get("/api/tasks", async ({ request }) => {
   await delay(200); // 実際のAPIを模倣
@@ -91,8 +95,42 @@ export const getTasksHandler = http.get("/api/tasks", async ({ request }) => {
   const sortBy = url.searchParams.get("sortBy") || "workDate";
   const sortOrder = url.searchParams.get("sortOrder") || "desc";
 
+  // フィルター条件
+  const workDateFrom = url.searchParams.get("workDateFrom");
+  const workDateTo = url.searchParams.get("workDateTo");
+  const workerIdsParam = url.searchParams.get("workerIds");
+  const materialIdsParam = url.searchParams.get("materialIds");
+
+  const workerIds = workerIdsParam ? workerIdsParam.split(",") : [];
+  const materialIds = materialIdsParam ? materialIdsParam.split(",") : [];
+
+  // フィルター処理
+  let filteredData = [...tasksData];
+
+  // 作業日範囲フィルター
+  if (workDateFrom) {
+    filteredData = filteredData.filter((t) => t.workDate >= workDateFrom);
+  }
+  if (workDateTo) {
+    filteredData = filteredData.filter((t) => t.workDate <= workDateTo);
+  }
+
+  // 作業者フィルター（指定された作業者のいずれかが含まれているタスク）
+  if (workerIds.length > 0) {
+    filteredData = filteredData.filter((t) =>
+      t.workers.some((w) => workerIds.includes(w.id))
+    );
+  }
+
+  // 材料フィルター（指定された材料のいずれかが含まれているタスク）
+  if (materialIds.length > 0) {
+    filteredData = filteredData.filter((t) =>
+      t.materials.some((m) => materialIds.includes(m.id))
+    );
+  }
+
   // ソート処理
-  const sortedData = [...tasksData].sort((a, b) => {
+  const sortedData = filteredData.sort((a, b) => {
     let aVal: string | number = "";
     let bVal: string | number = "";
 
