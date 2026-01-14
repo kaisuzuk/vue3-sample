@@ -3,7 +3,6 @@
 // ===================================
 
 import { http, HttpResponse, delay } from "msw";
-import type { TaskFixture } from "../fixtures/tasks";
 
 // ===================================
 // 空データ

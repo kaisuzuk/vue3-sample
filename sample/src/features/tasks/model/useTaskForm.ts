@@ -4,6 +4,7 @@
 
 import { ref, computed, watch } from "vue";
 import type { Task, CreateTaskRequest } from "../types";
+import { validateTaskForm } from "@/entities/task";
 
 /**
  * フォームの材料入力
@@ -188,35 +189,18 @@ export function useTaskForm(options: UseTaskFormOptions = {}) {
 
   /**
    * バリデーション実行
+   * @description entities/task/validate の純粋関数を利用
    */
   function validate(): boolean {
-    const newErrors: TaskFormErrors = {};
+    const result = validateTaskForm({
+      workDate: form.value.workDate,
+      workerIds: form.value.workerIds,
+      machineId: form.value.machineId,
+      materials: form.value.materials,
+    });
 
-    // 作業日
-    if (!form.value.workDate) {
-      newErrors.workDate = "作業日は必須です";
-    }
-
-    // 作業者
-    if (form.value.workerIds.length === 0) {
-      newErrors.workerIds = "作業者を1名以上選択してください";
-    }
-
-    // 機械
-    if (!form.value.machineId) {
-      newErrors.machineId = "使用機械を選択してください";
-    }
-
-    // 材料（任意だが、入力がある場合は量をチェック）
-    const invalidMaterial = form.value.materials.find(
-      (m) => m.id && (m.amount === null || m.amount <= 0)
-    );
-    if (invalidMaterial) {
-      newErrors.materials = "材料の使用量は0より大きい値を入力してください";
-    }
-
-    errors.value = newErrors;
-    return Object.keys(newErrors).length === 0;
+    errors.value = result.errors as TaskFormErrors;
+    return result.isValid;
   }
 
   /**

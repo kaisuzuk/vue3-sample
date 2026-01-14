@@ -132,9 +132,8 @@ import ItemsListWidget from '@/widgets/items/ItemsListWidget.vue'
 </template>
 
 <script setup lang="ts">
-import { useItemsList } from '@/features/items/useItemsList'
-import ItemsTable from '@/sections/items/ItemsTable.vue'
-import ItemsPagination from '@/sections/items/ItemsPagination.vue'
+import { useItemsList } from '@/features/items/model'
+import { ItemsTable, ItemsPagination } from '@/sections/items'
 
 const { view, ui, actions } = useItemsList()
 </script>
@@ -243,9 +242,9 @@ defineEmits<{
 **役割：** この設計の「心臓部」。状態の唯一の真実を持つ。
 
 ```typescript
-// features/items/useItemsList.ts
+// features/items/model/useItemsList.ts
 import { ref, computed } from 'vue'
-import { fetchItems } from '@/services/itemsService'
+import type { Item } from '../types'
 
 export const useItemsList = () => {
   // 状態
@@ -272,7 +271,8 @@ export const useItemsList = () => {
     async load() {
       loading.value = true
       try {
-        items.value = await fetchItems()
+        const res = await fetch('/api/items')
+        items.value = await res.json()
       } catch (e) {
         error.value = 'データの取得に失敗しました'
       } finally {
@@ -600,14 +600,18 @@ const save = async () => {
 
 ## まとめ
 
-| 種類 | 責務 | 状態を持つ | API を呼ぶ |
-|------|------|:----------:|:----------:|
-| pages | ルーティング入口 | ❌ | ❌ |
-| widgets | 画面骨組み・配線 | ❌ | ❌ |
-| sections | 表示・入力 | UI状態のみ | ❌ |
-| shared/ui | 共通部品 | UI状態のみ | ❌ |
-| features/model | 状態・ロジック | ✅ | ✅ |
-| entities | ドメイン判定 | ❌ | ❌ |
+| 種類 | 責務 | 状態を持つ | API を呼ぶ | 配置場所 |
+|------|------|:----------:|:----------:|----------|
+| pages | ルーティング入口 | ❌ | ❌ | `src/pages/{機能名}/` |
+| widgets | 画面骨組み・配線 | ❌ | ❌ | `src/widgets/{機能名}/` |
+| sections | 表示・入力 | UI状態のみ | ❌ | `src/sections/{機能名}/` |
+| shared/ui | 共通部品 | UI状態のみ | ❌ | `src/shared/ui/` |
+| features/model | 状態・ロジック | ✅ | ✅ | `src/features/{機能名}/model/` |
+| entities | ドメイン判定 | ❌ | ❌ | `src/entities/` |
+| stores | 全体共有状態 | ✅ | ✅ | `src/stores/` |
+| services | 共通API（※） | ❌ | ✅ | `src/services/` |
+
+※ services は複数機能で共通利用する API のみ配置。1つの Composable からしか使わない API は model 内に書く。
 
 ---
 

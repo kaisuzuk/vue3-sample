@@ -3,13 +3,16 @@
 // ===================================
 
 import { http, HttpResponse } from "msw";
-import { workersFixture, workersVersion } from "../fixtures/masters/workers";
-import { machinesFixture, machinesVersion } from "../fixtures/masters/machines";
 import {
+  workersFixture,
+  workersVersion,
+  machinesFixture,
+  machinesVersion,
   materialsFixture,
   materialsVersion,
-} from "../fixtures/masters/materials";
-import { unitsFixture, unitsVersion } from "../fixtures/masters/units";
+  unitsFixture,
+  unitsVersion,
+} from "../fixtures/masters";
 
 /**
  * GET /api/masters - 全マスタ取得
