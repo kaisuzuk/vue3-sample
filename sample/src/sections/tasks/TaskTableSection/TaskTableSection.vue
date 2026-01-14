@@ -19,7 +19,7 @@
 =================================== -->
 
 <script setup lang="ts">
-import type { Task } from '@/features/tasks/types'
+import type { Task } from "@/features/tasks/types";
 
 // ===================================
 // Props / Emits

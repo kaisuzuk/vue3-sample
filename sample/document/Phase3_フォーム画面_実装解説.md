@@ -13,6 +13,11 @@
 
 ```
 sample/
+├── src/entities/
+│   └── task/
+│       ├── validate.ts          # バリデーション純粋関数
+│       └── index.ts
+│
 ├── src/widgets/tasks/
 │   ├── TaskFormWidget/          # フォームWidget（Container）
 │   │   ├── TaskFormWidget.vue
@@ -59,6 +64,10 @@ graph TD
         UMS[useMasterStore]
     end
     
+    subgraph Entities Layer
+        VT[validateTaskForm]
+    end
+    
     subgraph MSW Layer
         TH[tasks.handlers.ts]
     end
@@ -68,6 +77,7 @@ graph TD
     TFW --> TFS
     TFW --> UTF
     TFW --> UMS
+    UTF -->|validation| VT
     UTF -->|POST/PUT /api/tasks| TH
 ```
 
@@ -182,41 +192,87 @@ const { workers, machines, materials, units } = useMasterStore()
 ##### `validate()` - バリデーション
 
 ```typescript
+import { validateTaskForm } from '@/entities/task'
+
 function validate(): boolean {
-  const newErrors: TaskFormErrors = {}
+  const result = validateTaskForm({
+    workDate: form.value.workDate,
+    workerIds: form.value.workerIds,
+    machineId: form.value.machineId,
+    materials: form.value.materials,
+  })
 
-  // 作業日
-  if (!form.value.workDate) {
-    newErrors.workDate = '作業日は必須です'
-  }
-
-  // 作業者
-  if (form.value.workerIds.length === 0) {
-    newErrors.workerIds = '作業者を1名以上選択してください'
-  }
-
-  // 機械
-  if (!form.value.machineId) {
-    newErrors.machineId = '使用機械を選択してください'
-  }
-
-  // 材料（量のチェック）
-  const invalidMaterial = form.value.materials.find(
-    (m) => m.id && (m.amount === null || m.amount <= 0)
-  )
-  if (invalidMaterial) {
-    newErrors.materials = '材料の使用量は0より大きい値を入力してください'
-  }
-
-  errors.value = newErrors
-  return Object.keys(newErrors).length === 0
+  errors.value = result.errors as TaskFormErrors
+  return result.isValid
 }
 ```
 
 **ポイント:**
-- 必須項目のチェック
-- 条件付きチェック（材料は任意だが、入力時は量が必要）
-- エラーメッセージはユーザーフレンドリーに
+- **entities/task/validate** の純粋関数を利用
+- UI層から独立したバリデーションロジック
+- 単体テストが容易
+
+#### バリデーション純粋関数（entities/task/validate.ts）
+
+```typescript
+export interface TaskFormInput {
+  workDate: string
+  workerIds: string[]
+  machineId: string
+  materials: Array<{
+    id: string
+    amount: number | null
+    unitId: string
+  }>
+}
+
+export interface TaskValidationResult {
+  isValid: boolean
+  errors: TaskValidationErrors
+}
+
+/**
+ * タスクフォームのバリデーション（純粋関数）
+ * UI層から独立しているため単体テストが容易
+ */
+export function validateTaskForm(input: TaskFormInput): TaskValidationResult {
+  const errors: TaskValidationErrors = {}
+
+  // 作業日
+  if (!input.workDate) {
+    errors.workDate = '作業日は必須です'
+  }
+
+  // 作業者
+  if (input.workerIds.length === 0) {
+    errors.workerIds = '作業者を1名以上選択してください'
+  }
+
+  // 機械
+  if (!input.machineId) {
+    errors.machineId = '使用機械を選択してください'
+  }
+
+  // 材料（量のチェック）
+  const invalidMaterial = input.materials.find(
+    (m) => m.id && (m.amount === null || m.amount <= 0)
+  )
+  if (invalidMaterial) {
+    errors.materials = '材料の使用量は0より大きい値を入力してください'
+  }
+
+  return {
+    isValid: Object.keys(errors).length === 0,
+    errors,
+  }
+}
+```
+
+**純粋関数化のメリット:**
+- Vue のリアクティブシステムから独立
+- 単体テストが容易（モックやコンポーネントのマウント不要）
+- 他のフレームワークや Node.js でも再利用可能
+- Copilot がロジックを理解しやすい
 
 ##### `submit()` - 送信（モード自動判定）
 
@@ -393,3 +449,12 @@ export interface TaskFormErrors {
 4. 一覧画面に戻り、登録したタスクが表示される
 5. 行をクリック → サイドバーで「編集する」をクリック
 6. 編集画面で値を変更して「更新する」をクリック
+
+---
+
+## 📝 更新履歴
+
+| 日付 | 版 | 内容 |
+|------|-----|------|
+| 2026/01/14 | 1.1 | entities/task/validate 分離に対応 |
+| 2026/01/12 | 1.0 | 初版作成 |

@@ -23,7 +23,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { TaskFormValues, TaskFormErrors, FormMaterial } from '@/features/tasks/model/useTaskForm'
-import type { Worker, Machine, Material, Unit } from '@/features/master/types'
+import type { Worker, Machine, Material, Unit } from "@/features/master/types";
 
 // ===================================
 // Props / Emits

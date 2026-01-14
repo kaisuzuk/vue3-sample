@@ -334,10 +334,41 @@ router.beforeEach(async (to, from, next) => {
 
 ## 4. 型定義（Types）
 
-### 4.1 マスタ型定義
+### 4.1 型定義の配置方針
+
+型定義は**見通しの良さと実プロジェクト構成を両立**させるため、以下の方針を採用しています：
+
+```
+fe-libs/types/                        ← 実装・一元管理
+├── index.ts
+├── tasks.ts                          （Vue2/Vue3で共有）
+└── masters.ts
+
+src/features/tasks/
+├── types/
+│   └── index.ts                      ← fe-libs/types を再エクスポート
+├── model/
+│   └── useTaskList.ts                ← @/features/tasks/types からインポート
+└── ...
+
+src/features/master/
+├── types/
+│   └── index.ts                      ← fe-libs/types を再エクスポート
+├── model/
+│   └── masterStore.ts                ← @/features/master/types からインポート
+└── ...
+```
+
+**再エクスポート方式のメリット：**
+- ✅ **見通しの良さ**：型定義が機能の近くにある
+- ✅ **一元管理**：実装は `fe-libs/types/` で統一
+- ✅ **Vue2/Vue3共有**：`@fe-libs/types` から両方がインポート可能
+- ✅ **保守性**：型定義追加時の変更箇所が最小限
+
+### 4.2 マスタ型定義
 
 ```typescript
-// src/features/master/types/index.ts
+// fe-libs/types/masters.ts
 
 /** 作業者マスタ */
 export interface Worker {
@@ -401,10 +432,35 @@ export interface MasterCheckResponse {
 | `type` (Union) | 取りうる値の集合を定義 |
 | JSDoc コメント | エディタでホバー時に説明が表示される |
 
-### 4.2 タスク型定義
+### 4.3 再エクスポート
+
+各機能の `types/index.ts` から `fe-libs/types` を再エクスポート：
 
 ```typescript
-// src/features/tasks/types/index.ts
+// src/features/master/types/index.ts
+export * from '@fe-libs/types'
+```
+
+これにより、以下が実現されます：
+
+```typescript
+// masterStore.ts
+import type {
+  Worker,
+  Machine,
+  Material,
+  Unit,
+  MasterVersions,
+  MasterType,
+  MastersResponse,
+  MasterCheckResponse,
+} from '../types'  // 近い・見通し良い
+```
+
+### 4.4 タスク型定義
+
+```typescript
+// fe-libs/types/tasks.ts
 
 /** タスクに紐づく材料（使用量付き） */
 export interface TaskMaterial {
@@ -732,6 +788,7 @@ sample/
         │   └── tasks.handlers.ts
         └── fixtures/        # レスポンスデータ
             └── masters/
+                ├── index.ts         # fixtures 一括エクスポート
                 ├── workers.ts
                 ├── machines.ts
                 ├── materials.ts
@@ -791,15 +848,35 @@ export const workersVersion = 'v1.0.0'
 2. **型をローカルに定義** して fe-libs の独立性を保つ
 3. **バージョン** を付けて更新チェックに対応
 
+#### fixtures/masters/index.ts
+
+```typescript
+// fe-libs/mocks/fixtures/masters/index.ts
+export * from './workers'
+export * from './machines'
+export * from './materials'
+export * from './units'
+```
+
+**一括エクスポートのメリット：**
+- handler からのインポートが簡潔になる
+- 新しい fixture を追加した際の変更箇所が1つで済む
+
 ### 6.4 Handler の書き方
 
 ```typescript
 // fe-libs/mocks/handlers/masters.handlers.ts
 import { http, HttpResponse } from 'msw'
-import { workersFixture, workersVersion } from '../fixtures/masters/workers'
-import { machinesFixture, machinesVersion } from '../fixtures/masters/machines'
-import { materialsFixture, materialsVersion } from '../fixtures/masters/materials'
-import { unitsFixture, unitsVersion } from '../fixtures/masters/units'
+import {
+  workersFixture,
+  workersVersion,
+  machinesFixture,
+  machinesVersion,
+  materialsFixture,
+  materialsVersion,
+  unitsFixture,
+  unitsVersion,
+} from '../fixtures/masters'
 
 /**
  * GET /api/masters - 全マスタ取得
@@ -956,6 +1033,7 @@ sample/
         │   └── tasks.handlers.ts
         └── fixtures/
             └── masters/
+                ├── index.ts            # 一括エクスポート
                 ├── workers.ts
                 ├── machines.ts
                 ├── materials.ts
@@ -1023,4 +1101,6 @@ Phase 1 の基盤構築が完了しました。次は **Phase 2: 一覧画面** 
 
 | 日付 | 版 | 内容 |
 |------|-----|------|
+| 2026/01/15 | 1.2 | 型定義の再エクスポート方式を採用 |
+| 2026/01/14 | 1.1 | fixtures/masters/index.ts 追加に対応 |
 | 2026/01/12 | 1.0 | 初版作成 |
